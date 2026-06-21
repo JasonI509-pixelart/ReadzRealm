@@ -1,0 +1,6 @@
+{
+  "name": "Children's Comic Creator & Reader",
+  "description": "An interactive children's graphic novel platform featuring custom AI story generation, a playful 2D-spread reading view, promotional claims, and dynamic kid-friendly dashboard features.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
