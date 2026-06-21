@@ -148,3 +148,24 @@
 .cute-pulse {
   animation: cutePulse 2s infinite ease-in-out;
 }
+
+/* Page Flip Transition animations resembling real comic book page turns */
+@keyframes pageTurnLeft {
+  0% { transform: perspective(1500px) rotateY(0deg); }
+  50% { transform: perspective(1500px) rotateY(-20deg) scale(0.98); }
+  100% { transform: perspective(1500px) rotateY(0deg); }
+}
+
+@keyframes pageTurnRight {
+  0% { transform: perspective(1500px) rotateY(0deg); }
+  50% { transform: perspective(1500px) rotateY(20deg) scale(0.98); }
+  100% { transform: perspective(1500px) rotateY(0deg); }
+}
+
+.page-sheet-turn-left {
+  animation: pageTurnLeft 0.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.page-sheet-turn-right {
+  animation: pageTurnRight 0.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}

@@ -98,6 +98,10 @@ export const BookModel = Object.assign(
       const instance = new BookInstance(fields);
       await instance.save();
       return instance;
+    },
+    delete: async (id: string) => {
+      const { DBStore } = await import('./dbStore');
+      return await DBStore.deleteBook(id);
     }
   }
 );

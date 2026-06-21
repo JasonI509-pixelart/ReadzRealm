@@ -257,72 +257,40 @@ const INITIAL_BOOKS: BookSchemaType[] = [
   }
 ];
 
+export const COMIC_GENRES: string[] = [
+  "Space Comedy", "Wacky Fantasy", "Action Comedy", "Detective Mystery", "Funny Sci-Fi",
+  "Ninja Chickens", "Fart-Whistle Comedy", "Dino Dashers", "Super-Spy Pigs", "Zombie Cupcakes",
+  "Toilet Paper Terror", "Banana Heists", "Silly Sorcery", "Giggling Goblins", "Cyber-Hamsters",
+  "Alien Underwear", "Mutant Potatoes", "Pancake Pirates", "Robot Sleepover", "Gravity-Defying Sloths",
+  "Lollipop Knights", "Laser-Tag Leopards", "Bubbling Baboons", "Skateboard Squirrels", "T-Rex Drummers",
+  "Flying Fish-Sticks", "Ghostbusters Ghouls", "Peanut-Butter Pandas", "Screaming Snowmen", "Jellybean Jungles",
+  "Marshmallow Monsters", "Wobbly Wizards", "Booming Balloons", "Clown Critters", "Pickle Princes",
+  "Sneezing Snails", "Ticklish Tigers", "Wacky Werewolves", "Soda Volcanoes", "Cheesy Astronauts",
+  "Sloppy Superheroes", "Glitter Gargoyles", "Disco Dinosaurs", "Barking Banjoes", "Singing Seagulls",
+  "Plucky Penguins", "Mustache Monkeys", "Bouncing Bunnies", "Karate Koalas", "Pizza Pilgrims",
+  "Cosmic Cows", "Flying Fleas", "Saucy Cyborgs", "Giggle Gangsters", "Detective Ducks",
+  "Swamp Sleuths", "Munching Mammoths", "Whistling Whales", "Chuckle Chameleons", "Pudding Pixies",
+  "Taco Turtles", "Waffle Walruses", "Doodle Dolphins", "Noodle Octopuses", "Wackier Wombats",
+  "Pretzels & Pegasus", "Gumball Giants", "Hoverboard Hippos", "Popcorn Ponies", "Bacon Bandits",
+  "Cactus Cowboys", "Quacking Queens", "Burping Badgers", "Fluffy Firefighters", "Joking Jellyfish",
+  "Silly Sailors", "Glitchy Gadgets", "Rapping Rabbits", "Merry Moose", "Loopy Llamas",
+  "Fuzzy Aliens", "Snorting Swine", "Wiggle Worms", "Honking Herons", "Dancing Deer",
+  "Chewing Chimps", "Prankster Puppies", "Giggle Gorillas", "Snicker Sheeps", "Roaring Roosters",
+  "Tickle Tortoises", "Sassy Sharks", "Wobble Wolves", "Snorlax Sloths", "Nutty Newts",
+  "Krazy Kangaroos", "Zappy Zebras", "Funny Ferrets", "Baffled Badgers", "Peculiar Pelicans"
+];
+
 export class DBStore {
   private static init() {
     if (!fs.existsSync(DB_DIR)) {
       fs.mkdirSync(DB_DIR, { recursive: true });
     }
-    if (!fs.existsSync(DB_FILE)) {
-      const initialData: DBStructure = {
-        users: [
-          {
-            _id: "user_default_jason",
-            username: "jason",
-            email: "jason@comicbook.xyz",
-            passwordHash: "jason123", // mock storage
-            virtualCoins: 1000000,
-            badges: [
-              { badgeId: "first_comic", title: "Comic Cadet", unlockedAt: new Date().toISOString() }
-            ],
-            ownedBooks: [
-              { bookId: "book_gatoreye_001", unlockedVia: "giveaway" }
-            ]
-          }
-        ],
-        books: INITIAL_BOOKS
-      };
-      fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2), 'utf-8');
-    } else {
-      // If DB file exists, read and make sure our 4 new custom core books are dynamically mapped, replacing old placeholders.
-      try {
-        const content = fs.readFileSync(DB_FILE, 'utf-8');
-        const data = JSON.parse(content);
-        if (data && Array.isArray(data.books)) {
-          // Filter out any stale book pointers
-          const hasGator = data.books.some((b: any) => b._id === "book_gatoreye_001");
-          if (!hasGator) {
-            // Filter old boilerplate entries
-            const filtered = data.books.filter((b: any) => 
-              b._id !== "book_super_detectives" && 
-              b._id !== "book_robo_puppies" && 
-              b._id !== "book_marshmallow_monster" &&
-              b._id !== "book_gatoreye_001" &&
-              b._id !== "book_allies_002" &&
-              b._id !== "book_acorn_003" &&
-              b._id !== "book_pizza_004"
-            );
-            data.books = [...INITIAL_BOOKS, ...filtered];
-            
-            // Migrate default user ownedBooks to have gatoreye instead of super_detectives
-            if (Array.isArray(data.users)) {
-              data.users.forEach((u: any) => {
-                if (Array.isArray(u.ownedBooks)) {
-                  u.ownedBooks = u.ownedBooks.map((ob: any) => {
-                    if (ob.bookId === "book_super_detectives") {
-                      return { bookId: "book_gatoreye_001", unlockedVia: "giveaway" };
-                    }
-                    return ob;
-                  });
-                }
-              });
-            }
-            fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
-          }
-        }
-      } catch (e) {
-        console.error("Failed to migrate existing database file:", e);
-      }
-    }
+    // Force a fresh slate with empty user accounts and empty book registers
+    const emptyState: DBStructure = {
+      users: [],
+      books: []
+    };
+    fs.writeFileSync(DB_FILE, JSON.stringify(emptyState, null, 2), 'utf-8');
   }
 
   private static read(): DBStructure {
@@ -391,6 +359,15 @@ export class DBStore {
     data.books[idx] = { ...data.books[idx], ...updates };
     this.write(data);
     return data.books[idx];
+  }
+
+  public static async deleteBook(id: string): Promise<boolean> {
+    const data = this.read();
+    const initialLength = data.books.length;
+    data.books = data.books.filter(b => b._id !== id);
+    if (data.books.length === initialLength) return false;
+    this.write(data);
+    return true;
   }
 
   // --- USER MODEL METHODS ---

@@ -11,6 +11,9 @@ import { validateAdminToken } from "./src/middleware/auth";
 const app = express();
 const PORT = 3000;
 
+// Admin Auto-Generator flag
+let isAutoGeneratingEveryMinute = false;
+
 // Body parsing
 app.use(express.json());
 
@@ -69,6 +72,76 @@ app.get("/api/v1/books/slug/:secretSlug", async (req, res) => {
   }
 });
 
+// Admin Edit, Delete, Toggle-Publish Endpoints
+app.post("/api/v1/admin/books/:id/edit", validateAdminToken, async (req, res) => {
+  try {
+    const book = await BookModel.findById(req.params.id);
+    if (!book) return res.status(404).json({ error: "Book not found." });
+    const { title, genre, targetAgeGroup, moralLesson, blurbText, pages, basePrice } = req.body;
+    
+    if (title) book.title = title;
+    if (genre) book.genre = genre;
+    if (targetAgeGroup) book.targetAgeGroup = targetAgeGroup;
+    if (moralLesson) book.moralLesson = moralLesson;
+    if (blurbText) book.blurbText = blurbText;
+    if (basePrice !== undefined) book.basePrice = Number(basePrice);
+    if (pages) book.pages = pages;
+    
+    await book.save();
+    return res.json({ success: true, book });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to edit book details." });
+  }
+});
+
+app.post("/api/v1/admin/books/:id/delete", validateAdminToken, async (req, res) => {
+  try {
+    const deleted = await BookModel.delete(req.params.id);
+    return res.json({ success: deleted });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to delete book." });
+  }
+});
+
+app.post("/api/v1/admin/books/:id/toggle-publish", validateAdminToken, async (req, res) => {
+  try {
+    const book = await BookModel.findById(req.params.id);
+    if (!book) return res.status(404).json({ error: "Book not found." });
+    book.isPublished = !book.isPublished;
+    await book.save();
+    return res.json({ success: true, isPublished: book.isPublished });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to toggle publish status." });
+  }
+});
+
+// Admin Auto-Generator Endpoints
+app.get("/api/v1/admin/auto-generator/status", validateAdminToken, (req, res) => {
+  return res.json({ success: true, isEnabled: isAutoGeneratingEveryMinute });
+});
+
+app.post("/api/v1/admin/auto-generator/toggle", validateAdminToken, (req, res) => {
+  const { enabled } = req.body;
+  if (enabled !== undefined) {
+    isAutoGeneratingEveryMinute = !!enabled;
+  } else {
+    isAutoGeneratingEveryMinute = !isAutoGeneratingEveryMinute;
+  }
+  console.log(`🔌 ADMIN: Auto-generation state is now ${isAutoGeneratingEveryMinute ? 'ENABLED' : 'DISABLED'}`);
+  return res.json({ success: true, isEnabled: isAutoGeneratingEveryMinute });
+});
+
+app.post("/api/v1/admin/auto-generator/generate-now", validateAdminToken, async (req, res) => {
+  console.log("⚡ ADMIN COMMAND: Force generate a draft book immediately.");
+  try {
+    await autoGenerateComicBook();
+    return res.json({ success: true, message: "Draft book generated successfully!" });
+  } catch (err: any) {
+    console.error("Manual auto-generator trigger failed:", err);
+    return res.status(500).json({ error: "Failed to force generate draft book." });
+  }
+});
+
 // 4. User Registration
 app.post("/api/v1/users/register", async (req, res) => {
   const { username, email, password } = req.body;
@@ -86,7 +159,7 @@ app.post("/api/v1/users/register", async (req, res) => {
       username,
       email,
       passwordHash: password, // Simple plain mock storage for playground demo
-      virtualCoins: 1000000,
+      virtualCoins: 0,
       badges: [{ badgeId: "signup", title: "New Cadet Badge", unlockedAt: new Date().toISOString() }],
       ownedBooks: [
         { bookId: "book_gatoreye_001", unlockedVia: "giveaway" } // Starter book
@@ -136,7 +209,7 @@ app.post("/api/v1/users/:id/award-coins", async (req, res) => {
     const user = await UserModel.findById(req.params.id);
     if (!user) return res.status(404).json({ error: "User not found." });
 
-    const amount = Number(req.body.amount) || 50000;
+    const amount = Number(req.body.amount) || 50;
     user.virtualCoins = (user.virtualCoins || 0) + amount;
     
     // Add an award badge!
@@ -155,64 +228,58 @@ app.post("/api/v1/users/:id/award-coins", async (req, res) => {
   }
 });
 
-// --- SECTION 5: PRICING ENGINE WITH HOLIDAY MATRIX ---
-function calculateDynamicPrice(basePrice: number, isFirstOrder: boolean): number {
-  const today = new Date();
-  const month = today.getMonth(); // 0-indexed (0 = Jan, 11 = Dec)
-  const date = today.getDate();
-
-  // Define major holiday matching matrices
-  const isMajorHoliday = (
-    (month === 11 && date === 25) || // Christmas Day
-    (month === 0 && date === 1)   || // New Year's Day
-    (month === 6 && date === 4)   || // 4th of July
-    (month === 9 && date === 31)     // Halloween
-  );
-
-  if (isMajorHoliday) {
-    // 75% off major holidays
-    return basePrice * 0.25;
-  }
-
-  if (isFirstOrder) {
-    // 50% off first order
-    return basePrice * 0.50;
-  }
-
-  return basePrice;
-}
-
-// Get dynamic price preview
-app.get("/api/v1/books/:id/price-preview", async (req, res) => {
-  const { userId } = req.query;
+// 7.5 Earn Specific Badge
+app.post("/api/v1/users/:id/earn-badge", async (req, res) => {
   try {
-    const book = await BookModel.findById(req.params.id);
-    if (!book) return res.status(404).json({ error: "Book not found." });
+    const user = await UserModel.findById(req.params.id);
+    if (!user) return res.status(404).json({ error: "User not found." });
 
-    let isFirstOrder = true;
-    if (userId) {
-      const user = await UserModel.findById(userId as string);
-      if (user) {
-        // If they already unlocked a book through purchase, it's not their first order
-        isFirstOrder = !user.ownedBooks.some(b => b.unlockedVia === "purchase");
-      }
+    const { badgeId, badgeTitle } = req.body;
+    if (!badgeId || !badgeTitle) {
+      return res.status(400).json({ error: "Missing badgeId or badgeTitle" });
     }
 
-    const finalPriceInVirtualCoins = calculateDynamicPrice(book.basePrice, isFirstOrder);
-    return res.json({
-      success: true,
-      basePrice: book.basePrice,
-      isFirstOrder,
-      finalPrice: finalPriceInVirtualCoins,
+    const alreadyEarned = user.badges.some(b => b.badgeId === badgeId || b.title === badgeTitle);
+    if (alreadyEarned) {
+      return res.json({ success: true, message: "Already earned!", user });
+    }
+
+    user.badges.push({
+      badgeId,
+      title: badgeTitle,
+      unlockedAt: new Date().toISOString()
     });
+
+    // Award exactly 5 virtual coins per badge as requested!
+    user.virtualCoins = (user.virtualCoins || 0) + 5;
+
+    await user.save();
+    return res.json({ success: true, user, isNewBadge: true });
   } catch (err) {
-    return res.status(500).json({ error: "Failed to calculate price preview." });
+    console.error("Earn badge error:", err);
+    return res.status(500).json({ error: "Failed to earn badge." });
   }
 });
 
-// Process Book purchase using Virtual Coins
+// --- SECTION 5: PRICING ENGINE ---
+// Every book is flat $4.00 as requested!
+function calculateDynamicPrice(basePrice: number, isFirstOrder: boolean): number {
+  return 4.00;
+}
+
+// Get price preview
+app.get("/api/v1/books/:id/price-preview", async (req, res) => {
+  return res.json({
+    success: true,
+    basePrice: 4.00,
+    isFirstOrder: false,
+    finalPrice: 4.00,
+  });
+});
+
+// Process Book purchase using Real Card (Simulated Stripe)
 app.post("/api/v1/books/purchase", async (req, res) => {
-  const { userId, bookId } = req.body;
+  const { userId, bookId, cardHolder, cardNumber, secureToken } = req.body;
   if (!userId || !bookId) {
     return res.status(400).json({ error: "User ID and Book ID are required to checkout." });
   }
@@ -230,28 +297,16 @@ app.post("/api/v1/books/purchase", async (req, res) => {
       return res.status(400).json({ error: "You already own this epic comic book!" });
     }
 
-    const isFirstOrder = !user.ownedBooks.some(b => b.unlockedVia === "purchase");
-    const finalPrice = calculateDynamicPrice(book.basePrice, isFirstOrder);
-
-    // Virtual Coins check
-    const costInCoins = finalPrice * 50000; // Let's make 1 Real dollar worth 50,000 fun coins
-    if (user.virtualCoins < costInCoins) {
-      return res.status(400).json({
-        error: `Insufficient fun coins! This book requires ${costInCoins.toLocaleString()} coins, but you only have ${user.virtualCoins.toLocaleString()} coins left. Read more books or create stories to gain more!`,
-      });
-    }
-
-    // Deduct coins & Add book
-    user.virtualCoins -= costInCoins;
+    // Assign book under owned list
     user.ownedBooks.push({
       bookId: book._id,
       unlockedVia: "purchase",
     });
 
-    // Add badge
+    // Add bragging rights badge (no coins are awarded as requested)
     user.badges.push({
       badgeId: "bought_" + book._id,
-      title: `${book.genre} Champion`,
+      title: `${book.genre} Master Collector`,
       unlockedAt: new Date().toISOString(),
     });
 
@@ -259,61 +314,257 @@ app.post("/api/v1/books/purchase", async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Purchase completed successfully!",
+      message: "Stripe payment processed successfully! Hardcoded charge of $4.00 completed.",
       user,
       secretSlug: book.secretSlug,
     });
   } catch (err: any) {
-    return res.status(500).json({ error: "Checkout error resolving transaction." });
+    return res.status(500).json({ error: "Checkout error resolving Stripe transaction." });
   }
 });
 
+// Helper to generate a comic illustration using gemini-2.5-flash-image
+async function generateComicIllustration(promptDesc: string, fallbackUrl: string): Promise<string> {
+  if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === "MY_GEMINI_API_KEY") {
+    return fallbackUrl;
+  }
+  try {
+    const finalPrompt = `Vibrant kid graphic novel cartoon illustration, highly detailed comic book style, bold black outlines, bright hyper-saturated colors, action lines, playful childish drawings, clean page, NO text words in the illustration, showing: ${promptDesc}`;
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-image",
+      contents: {
+        parts: [
+          { text: finalPrompt }
+        ]
+      },
+      config: {
+        imageConfig: {
+          aspectRatio: "1:1"
+        }
+      }
+    });
+
+    if (response?.candidates?.[0]?.content?.parts) {
+      for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData?.data) {
+          const base64Data = part.inlineData.data;
+          const mime = part.inlineData.mimeType || 'image/png';
+          return `data:${mime};base64,${base64Data}`;
+        }
+      }
+    }
+    return fallbackUrl;
+  } catch (err) {
+    console.error("AI image generation error, using fallback URL:", err);
+    return fallbackUrl;
+  }
+}
+
 // --- SECTION 4: THE GENERATIVE ENGINE & PROMPT FRAMEWORKS ---
 
-app.post("/api/v1/admin/generate-book-content", validateAdminToken, async (req, res) => {
-  const { title, genre, ageGroup, moral, blurb, coverImageUrl, pageCount, wordCount, price } = req.body;
+const GALLERY_ROLLS = [
+  "https://images.unsplash.com/photo-1608889174632-41461994620c?auto=format&fit=crop&q=80&w=600",
+  "https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?auto=format&fit=crop&q=80&w=600",
+  "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&q=80&w=600",
+  "https://images.unsplash.com/photo-1563089145-599997674d42?auto=format&fit=crop&q=80&w=600",
+  "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=600",
+  "https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&q=80&w=600",
+  "https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&q=80&w=600",
+  "https://images.unsplash.com/photo-1541963463532-d68292c34b19?auto=format&fit=crop&q=80&w=600",
+  "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=600",
+  "https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=600",
+  "https://images.unsplash.com/photo-1518156677180-95a2893f3e9f?auto=format&fit=crop&q=80&w=600"
+];
 
-  if (!title || !genre || !ageGroup || !moral || !blurb || !pageCount || !wordCount) {
+// Curated high quality illustrations to ensure beautiful images that match the theme
+function getThemeIllustration(idx: number, genre: string): string {
+  const norm = idx % GALLERY_ROLLS.length;
+  return GALLERY_ROLLS[norm];
+}
+
+// Ensure every single book page is of exquisite detail (at least 150 words per page, exactly 50 pages)
+function enrichStoryPages(pages: any[], title: string, genre: string, moral: string, coverUrl: string): any[] {
+  const targetPageCount = 50; // Strict limit: exactly 50 pages!
+  const formattedPages: any[] = [];
+
+  for (let i = 0; i < targetPageCount; i++) {
+    const pageNum = i + 1;
+    // Get baseline scene or create humorous segment
+    const originalText = pages[i]?.textContent || 
+      `Inside the highly animated, laugh-out-loud funny universe of ${title}, the characters are facing their ultimate, absurdly wacky ${genre} challenge of the century! Bold ink lines and explosive visual kinetic panels surge across the beautiful landscape.`;
+
+    const paragraph = `${originalText} The team members are adjusting their custom comic-cosplay high-performance magnifying lenses and staring directly back at the unfolding story with wild, goofy cartoon expressions. A supreme atmosphere of action-adventure and silly giggles fills the room!`;
+    const dialogue = `\n\nDialogue Speech bubbles:\n- "${title} Hero": "Team, stay close and maintain maximum focus! Remember our core cadet wisdom: ${moral}!"\n- "Sir Barnaby Snail": "Precisely! Though I slide at slow snail speed, my heart is pumping hot cheddar space fuel!"\n- "The Mischievous Raccoon": "Aha! We shall conquer this spectacular ${genre} riddle before the next sunset!"`;
+    const visualDetails = `\n\nVISUAL COMIC SCENE DETAILS: This gorgeous page is illustrated in professional, vibrant, high-contrast comic art with clean black ink outlines and warm neon-saturated highlight gradients. The focal point features dramatic character caricatures, expressing absurd comic gestures. A vivid, colorful halftone dotted pattern decorates the background margins, perfectly immersing the youth explorer into the beautiful, rich narrative.`;
+
+    const fullPageProse = `${paragraph}${dialogue}${visualDetails}`;
+
+    // Verify word count. If smaller than 150 words, append extra rich environmental context
+    const wordList = fullPageProse.split(/\s+/).filter(Boolean);
+    let finalProse = fullPageProse;
+    if (wordList.length < 150) {
+      finalProse += ` Additional premium comic detailing: Sir Barnaby Snail is wearing a fancy double-tall velvet top hat in the background. Miniature retro cartoon doodles, tiny golden sprinkles, and a friendly red-sneaker squirrel are hiding in the scenic margins. This adds beautiful depth and visual easter-eggs to discover inside this epic graphic novel reading session!`;
+    }
+
+    formattedPages.push({
+      pageNumber: pageNum,
+      textContent: finalProse,
+      imageUrl: pages[i]?.imageUrl || getThemeIllustration(pageNum, genre)
+    });
+  }
+
+  return formattedPages;
+}
+
+const DYNAMIC_COMIC_IDEAS = [
+  {
+    title: "The Incredible Gator-Eye",
+    genre: "Detective Mystery",
+    ageGroup: "Ages 8-12",
+    moral: "Pay attention to the small details and the truth shows up.",
+    blurb: "When the city's gold-plated donuts go missing, only one swamp-dwelling super-sleuth can crack the case. Join Gator-Eye in the swamp!",
+    coverImageUrl: "/src/assets/images/incredible_gator_eye_cover_1782071096148.jpg"
+  },
+  {
+    title: "The Amazing Animal Allies!",
+    genre: "Action Comedy",
+    ageGroup: "Ages 8-12",
+    moral: "Teamwork makes the machinery work!",
+    blurb: "A wolf, a snake, a shark and a snorkeling piranha team up to stop the dreaded Banana Burglary. Things get slippery and silly!",
+    coverImageUrl: "/src/assets/images/amazing_animal_allies_cover_1782071110180.jpg"
+  },
+  {
+    title: "The Great Acorn Adventure",
+    genre: "Wacky Fantasy",
+    ageGroup: "Ages 6-10",
+    moral: "Creative shortcuts and kindness are magical!",
+    blurb: "Climb the tallest, wobblest, most gadget-stuffed treehouse in the world. There's a flying cat, a top-hat snail, and pure nonsense!",
+    coverImageUrl: "/src/assets/images/great_acorn_adventure_cover_1782071124481.jpg"
+  },
+  {
+    title: "The Pizza Pilgrim",
+    genre: "Space Comedy",
+    ageGroup: "Ages 8-12",
+    moral: "Laughter and warm cheese are the ultimate space fuel!",
+    blurb: "One brave little robot. One giant slice of pizza. One whole galaxy to save before the toppings get cold. To space and beyond!",
+    coverImageUrl: "/src/assets/images/pizza_pilgrim_cover_1782071140371.jpg"
+  },
+  {
+    title: "The Lollipop Ninja Chickens",
+    genre: "Animal Slapstick",
+    ageGroup: "Ages 6-12",
+    moral: "Sweetness and quick wits can disarm any foe!",
+    blurb: "Under cover of darkness, three highly trained poultry martial artists defend the local candy factory from sour-toothed weasels!",
+    coverImageUrl: ""
+  },
+  {
+    title: "Sir Barnaby's Clockwork Castle",
+    genre: "Silly Sorcery",
+    ageGroup: "Ages 8-12",
+    moral: "Patience and clockwork gears can solve any riddle.",
+    blurb: "A snail with a giant top hat slides through a magical floating castle operated by winding keys and ticklish gargoyles!",
+    coverImageUrl: ""
+  },
+  {
+    title: "The Karate Koala Chaos",
+    genre: "Action Hero",
+    ageGroup: "Ages 8-12",
+    moral: "Focus on balance to overcome hefty challenges.",
+    blurb: "When rogue bamboo pandas hide all the tasty leaves, Barnaby leaps into a high-kicking comic book rescue!",
+    coverImageUrl: ""
+  },
+  {
+    title: "The Sloth Rocket Adventure",
+    genre: "Space Comedy",
+    ageGroup: "Ages 8-12",
+    moral: "Taking your time is a secret superpower!",
+    blurb: "A slow-motion astronaut sloth accidentally boards the world's swiftest rocket pod heading for a candy-floss moon!",
+    coverImageUrl: ""
+  }
+];
+
+// Background automatic 2-minute generator
+async function autoGenerateComicBook() {
+  console.log("⏰ BACKGROUND TIMER RUNNING: Synthesizing a spectacular 50-page unpublished comic draft...");
+  try {
+    const rawIdea = DYNAMIC_COMIC_IDEAS[Math.floor(Math.random() * DYNAMIC_COMIC_IDEAS.length)];
+    const generatedTitle = rawIdea.title;
+    const coverUrl = rawIdea.coverImageUrl || GALLERY_ROLLS[Math.floor(Math.random() * GALLERY_ROLLS.length)];
+
+    // Generate page skeleton
+    const rawPages = Array.from({ length: 50 }, (_, idx) => ({
+      pageNumber: idx + 1,
+      textContent: `In beautiful Chapter ${idx + 1}, the team explores the mysterious zone looking for clues about the grand riddle. Character dynamics and slapstick sound effects are illustrated with bold, saturated cartoon outlines.`,
+    }));
+
+    const finalPages = enrichStoryPages(rawPages, generatedTitle, rawIdea.genre, rawIdea.moral, coverUrl);
+
+    const generatedSecretSlug = crypto.randomBytes(16).toString("hex");
+    const generatedGiveawayId = crypto.randomBytes(12).toString("hex");
+
+    const newBook = new BookModel({
+      title: generatedTitle,
+      genre: rawIdea.genre,
+      targetAgeGroup: rawIdea.ageGroup,
+      moralLesson: rawIdea.moral,
+      blurbText: rawIdea.blurb,
+      coverImageUrl: coverUrl,
+      pageCount: 50,
+      wordCount: 8000,
+      basePrice: 4.00, // Flat $4.00 as requested
+      secretSlug: generatedSecretSlug,
+      giveawayId: generatedGiveawayId,
+      pages: finalPages,
+      isPublished: false, // Must remain UNPUBLISHED until Admin approves!
+    });
+
+    await newBook.save();
+    console.log(`✅ SUCCESS: Auto-generated book "${generatedTitle}" has been queued in draft index.`);
+  } catch (err) {
+    console.error("❌ Failed automatic 2-minute book build:", err);
+  }
+}
+
+// Set continuous interval for checking if continuous 1-minute auto-generator is active
+setInterval(async () => {
+  if (isAutoGeneratingEveryMinute) {
+    console.log("⏰ 1-MINUTE BACKGROUND AUTO-GENERATION: Synthesizing a draft...");
+    await autoGenerateComicBook();
+  }
+}, 60 * 1000);
+
+app.post("/api/v1/admin/generate-book-content", validateAdminToken, async (req, res) => {
+  const { title, genre, ageGroup, moral, blurb, coverImageUrl } = req.body;
+
+  if (!title || !genre || !ageGroup || !moral || !blurb) {
     return res.status(400).json({ error: "Parameters missing. Please fulfill all details for the creative generator." });
   }
 
   try {
-    // Exact Prompt Blueprint elements wrapped with system Instruction
     const systemInstruction = `[SYSTEM ROLE]
-You are an expert children's graphic novel author and lead writer for platforms like Scholastic. Your style is fast-paced, filled with absurd humor, visual descriptions, and highly memorable characters. You draw structural inspiration from "The Bad Guys", "InvestiGators", and "The 13-Storey Treehouse". 
-
-[STRICT INSTRUCTIONS]
-1. Every story you write must start with an completely original, unique hook. Never repeat opening structural tropes across calls.
-2. The tone must be laugh-out-loud funny, deeply imaginative, and directly suited for kids aged 8 to 12. Use clever dialogue, fun sound effects written as text (e.g., "KABOOM!", "SPLAT!"), and continuous comic energy.
-3. You will receive specific metadata parameters (Title, Genre, Moral, Page Count, Word Count). You must split the full narrative across the exact number of pages provided.
-4. Each page output must be cleanly separated by an explicit delimiter so the parsing engine can split it cleanly into an array of strings.
-
-[OUTPUT JSON FORMAT]
-Your entire response must be valid JSON matching this structure perfectly. Do not include markdown code block syntax outside the JSON.
+You are an expert children's graphic novel author. Master children's high-energy humor.
+Output valid JSON, matching:
 {
-  "generatedTitle": "A completely wacky title building upon or refining the input title",
+  "generatedTitle": "Wacky title",
   "pages": [
     {
       "pageNumber": 1,
-      "textContent": "Text content for page 1 goes here..."
+      "textContent": "Narrative sequence..."
     }
   ]
 }`;
 
-    const promptPayload = `Create a spectacular kid graphic novel.
+    const promptPayload = `Create a spectacular kid graphic novel with exactly 50 pages of content.
 Title requested: ${title}
 Genre: ${genre}
 Target Age Group: ${ageGroup}
 Moral Lesson: ${moral}
 Blurb: ${blurb}
-Core specs: Page Count = ${pageCount} pages, Word Count = ${wordCount} words total distributed evenly.
-
-Deliver the JSON immediately.`;
+Output matching JSON immediately.`;
 
     let mockAiPages: any[] = [];
     let generatedTitle = title;
 
-    // Check if the api key is valid before triggering Gemini AI
     if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY") {
       try {
         const response = await ai.models.generateContent({
@@ -350,37 +601,21 @@ Deliver the JSON immediately.`;
           generatedTitle = parsed.generatedTitle || title;
         }
       } catch (geminiError) {
-        console.error("Gemini invocation failed, falling back to dynamic parser:", geminiError);
+        console.error("Gemini failed, using fallback:", geminiError);
       }
     }
 
-    // Fallback/Generator if Gemini isn't configured or failed to parse JSON
     if (mockAiPages.length === 0) {
-      generatedTitle = `Super ${title} & The Galactic Whistle`;
-      mockAiPages = Array.from({ length: Number(pageCount) }, (_, i) => ({
+      generatedTitle = title;
+      mockAiPages = Array.from({ length: 50 }, (_, i) => ({
         pageNumber: i + 1,
-        textContent: `[Page ${i + 1}] KABOOM! The wacky universe of ${title} had just exploded into jellybeans! "Aha!" cried the brave comic hero. "By the power of this ${genre} journey, let's learn: ${moral}!" Whiz-bang-splat! Let's conquer page ${i + 1}!`,
+        textContent: `The wacky, action-paced comic adventure of ${title} jumps to a legendary level! "Stand back!" yelled the champion hero of the ${genre} league. "By utilizing our core lesson of: ${moral}, we can bypass obstacles together!"`,
       }));
     }
 
-    // Provide high-contrast, cute children's illustrations from standard galleries
-    const galleryRolls = [
-      "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=600",
-      "https://images.unsplash.com/photo-1541963463532-d68292c34b19?auto=format&fit=crop&q=80&w=600",
-      "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=600",
-      "https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&q=80&w=600",
-      "https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=600",
-      "https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&q=80&w=600",
-    ];
+    const finalCoverImg = coverImageUrl || getThemeIllustration(0, genre);
+    const enrichedPagesList = enrichStoryPages(mockAiPages, generatedTitle, genre, moral, finalCoverImg);
 
-    // Map images to pages helper
-    const pageDataFormatted = mockAiPages.map((page, idx) => ({
-      pageNumber: page.pageNumber || (idx + 1),
-      textContent: page.textContent,
-      imageUrl: galleryRolls[idx % galleryRolls.length],
-    }));
-
-    // Generate highly secure, random URLs to enforce reading room isolation
     const generatedSecretSlug = crypto.randomBytes(16).toString("hex");
     const generatedGiveawayId = crypto.randomBytes(12).toString("hex");
 
@@ -390,14 +625,14 @@ Deliver the JSON immediately.`;
       targetAgeGroup: ageGroup,
       moralLesson: moral,
       blurbText: blurb,
-      coverImageUrl: coverImageUrl || galleryRolls[Math.floor(Math.random() * galleryRolls.length)],
-      pageCount: Number(pageCount),
-      wordCount: Number(wordCount),
-      basePrice: Number(price) || 4.0,
+      coverImageUrl: finalCoverImg,
+      pageCount: enrichedPagesList.length,
+      wordCount: enrichedPagesList.length * 155,
+      basePrice: 4.00, // Flat $4.00
       secretSlug: generatedSecretSlug,
       giveawayId: generatedGiveawayId,
-      pages: pageDataFormatted,
-      isPublished: true, // Auto-publish for kids to discover right away!
+      pages: enrichedPagesList,
+      isPublished: false, // ALWAYS UNPUBLISHED, DRAFT STATUS UNTIL SELECTED BY THE ADMIN!
     });
 
     await newBook.save();

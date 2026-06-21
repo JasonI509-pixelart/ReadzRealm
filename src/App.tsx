@@ -65,7 +65,7 @@ interface User {
 }
 
 // Sound effects generator using standard browser Web Audio Synth
-function playRetroSound(type: 'woosh' | 'splat' | 'coin' | 'sparkle' | 'admin') {
+function playRetroSound(type: 'woosh' | 'splat' | 'coin' | 'sparkle' | 'admin' | 'kaboom' | 'whizz' | 'boom' | 'bam' | 'pow' | 'page_turn') {
   try {
     const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContext) return;
@@ -76,7 +76,13 @@ function playRetroSound(type: 'woosh' | 'splat' | 'coin' | 'sparkle' | 'admin') 
     osc.connect(gain);
     gain.connect(ctx.destination);
 
-    if (type === 'woosh') {
+    let selectedType = type;
+    if (type === 'page_turn') {
+      const comicSounds: Array<'kaboom' | 'splat' | 'whizz' | 'boom' | 'bam' | 'pow'> = ['kaboom', 'splat', 'whizz', 'boom', 'bam', 'pow'];
+      selectedType = comicSounds[Math.floor(Math.random() * comicSounds.length)];
+    }
+
+    if (selectedType === 'woosh') {
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(600, ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(150, ctx.currentTime + 0.35);
@@ -84,7 +90,7 @@ function playRetroSound(type: 'woosh' | 'splat' | 'coin' | 'sparkle' | 'admin') 
       gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.35);
       osc.start();
       osc.stop(ctx.currentTime + 0.35);
-    } else if (type === 'splat') {
+    } else if (selectedType === 'splat') {
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(200, ctx.currentTime);
       osc.frequency.linearRampToValueAtTime(80, ctx.currentTime + 0.25);
@@ -92,7 +98,7 @@ function playRetroSound(type: 'woosh' | 'splat' | 'coin' | 'sparkle' | 'admin') 
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
       osc.start();
       osc.stop(ctx.currentTime + 0.25);
-    } else if (type === 'coin') {
+    } else if (selectedType === 'coin') {
       // Classic double retro coin ping
       osc.type = 'sine';
       osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
@@ -101,7 +107,7 @@ function playRetroSound(type: 'woosh' | 'splat' | 'coin' | 'sparkle' | 'admin') 
       gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.25);
       osc.start();
       osc.stop(ctx.currentTime + 0.25);
-    } else if (type === 'sparkle') {
+    } else if (selectedType === 'sparkle') {
       // Magic high chime
       osc.type = 'sine';
       osc.frequency.setValueAtTime(880, ctx.currentTime); // A5
@@ -110,7 +116,7 @@ function playRetroSound(type: 'woosh' | 'splat' | 'coin' | 'sparkle' | 'admin') 
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
       osc.start();
       osc.stop(ctx.currentTime + 0.4);
-    } else if (type === 'admin') {
+    } else if (selectedType === 'admin') {
       // Secret laser sound
       osc.type = 'sine';
       osc.frequency.setValueAtTime(80, ctx.currentTime);
@@ -119,6 +125,51 @@ function playRetroSound(type: 'woosh' | 'splat' | 'coin' | 'sparkle' | 'admin') 
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
       osc.start();
       osc.stop(ctx.currentTime + 0.5);
+    } else if (selectedType === 'kaboom') {
+      // Powerful descending explosion synth
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(450, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.45);
+      gain.gain.setValueAtTime(0.35, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.45);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.45);
+    } else if (selectedType === 'whizz') {
+      // High sliding sci-fi slide
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(250, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1500, ctx.currentTime + 0.3);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.3);
+    } else if (selectedType === 'boom') {
+      // Low sub bass kick boom
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(180, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(30, ctx.currentTime + 0.5);
+      gain.gain.setValueAtTime(0.4, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.5);
+    } else if (selectedType === 'bam') {
+      // Mid punchy sound
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(300, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(100, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+    } else if (selectedType === 'pow') {
+      // High-pitched snap blast
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(800, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(350, ctx.currentTime + 0.2);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.2);
     }
   } catch (e) {
     // Audio sandbox error ignore
@@ -163,7 +214,7 @@ export default function App() {
   const [genAgeGroup, setGenAgeGroup] = useState<string>('8-12 years');
   const [genMoral, setGenMoral] = useState<string>('');
   const [genBlurb, setGenBlurb] = useState<string>('');
-  const [genPageCount, setGenPageCount] = useState<number>(6);
+  const [genPageCount, setGenPageCount] = useState<number>(50); // Set default to 50 pages (which is 20 or higher)
   const [genWordCount, setGenWordCount] = useState<number>(200);
   const [genPrice, setGenPrice] = useState<number>(4.00);
   const [genCoverUrl, setGenCoverUrl] = useState<string>('');
@@ -171,12 +222,39 @@ export default function App() {
   const [adminGenError, setAdminGenError] = useState<string>('');
   const [adminGenSuccess, setAdminGenSuccess] = useState<string>('');
   
+  // Auto-Generator Controls State
+  const [isGeneratorActive, setIsGeneratorActive] = useState<boolean>(false);
+  const [isTriggeringNow, setIsTriggeringNow] = useState<boolean>(false);
+  
   // Custom manual claim input
   const [directPromoKey, setDirectPromoKey] = useState<string>('');
   const [isClaiming, setIsClaiming] = useState<boolean>(false);
 
   // Dynamic price map to fast query previews
   const [pricesPreviewMap, setPricesPreviewMap] = useState<Record<string, { basePrice: number; isFirstOrder: boolean; finalPrice: number }>>({});
+
+  // Store page sub-tab filter: 'all' or 'collection'
+  const [storeFilter, setStoreFilter] = useState<'all' | 'collection'>('all');
+  // Page flip transition state
+  const [isFlipping, setIsFlipping] = useState<boolean>(false);
+  const [flipDirection, setFlipDirection] = useState<'left' | 'right'>('left');
+  // Badge overview visual modal toggle
+  const [showBadgesModal, setShowBadgesModal] = useState<boolean>(false);
+  // Book coins purchase confirmation dialog box
+  const [coinsConfirmBook, setCoinsConfirmBook] = useState<Book | null>(null);
+
+  // Admin Edit Selected Book States
+  const [editingBookId, setEditingBookId] = useState<string | null>(null);
+  const [editFormTitle, setEditFormTitle] = useState<string>('');
+  const [editFormGenre, setEditFormGenre] = useState<string>('');
+  const [editFormAgeGroup, setEditFormAgeGroup] = useState<string>('');
+  const [editFormMoral, setEditFormMoral] = useState<string>('');
+  const [editFormBlurb, setEditFormBlurb] = useState<string>('');
+  const [editFormPrice, setEditFormPrice] = useState<number>(4.00);
+  const [editFormPages, setEditFormPages] = useState<Page[]>([]);
+  const [isAdminSaving, setIsAdminSaving] = useState<boolean>(false);
+  const [adminSavingSuccess, setAdminSavingSuccess] = useState<string>('');
+  const [adminSavingError, setAdminSavingError] = useState<string>('');
 
   // Suggested popular search tags
   const POPULAR_COMIC_TITLE_SUGGESTIONS = [
@@ -311,62 +389,127 @@ export default function App() {
     }
   };
 
-  // Coin booster cheat to help kids unlock multiple stories easily
-  const awardFreeCoins = async () => {
+  // Cheat code to unlock a legendary bragging-rights badge inside the museum
+  const awardAllBadgesCheat = async () => {
     if (!user) {
-      alert("Please sign up or log in to active your Coin Wallet first!");
+      alert("Please sign up or log in first!");
       return;
     }
+    const braggingRightsBadge = {
+      badgeId: "b_cheat_" + Date.now(),
+      title: "Master Badge Museum Architect 🏆",
+      unlockedAt: new Date().toISOString()
+    };
+    const updatedUser = { 
+      ...user, 
+      badges: [
+        ...user.badges, 
+        braggingRightsBadge
+      ]
+    };
+    setUser(updatedUser);
+    localStorage.setItem('comic_user', JSON.stringify(updatedUser));
+    playRetroSound('sparkle');
+    alert("🏆 CHEAT CODE ACTIVATED! You've unlocked the legendary 'Master Badge Museum Architect' badge for maximum bragging rights inside your profile museum!");
+  };
+
+  const triggerPageFlip = (newIndex: number, direction: 'left' | 'right') => {
+    setFlipDirection(direction);
+    setIsFlipping(true);
+    // Automatically trigger randomly chosen comic sounds on page turn
+    playRetroSound('page_turn');
+    setCurrentSpreadIndex(newIndex);
+    setTimeout(() => {
+      setIsFlipping(false);
+    }, 500); // 500ms aligns with pageTurn CSS animation
+  };
+
+  const earnNamedBadge = async (badgeId: string, badgeTitle: string) => {
+    if (!user) return;
     try {
-      const res = await fetch(`/api/v1/users/${user._id}/award-coins`, {
+      const res = await fetch(`/api/v1/users/${user._id}/earn-badge`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: 150000, badgeTitle: "Super Coin Collector Gold" })
+        body: JSON.stringify({ badgeId, badgeTitle })
       });
       if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.user) {
-          setUser(data.user);
-          localStorage.setItem('comic_user', JSON.stringify(data.user));
-          playRetroSound('coin');
+        const d = await res.json();
+        if (d.success && d.user) {
+          if (d.isNewBadge) {
+            playRetroSound('sparkle');
+            alert(`🏆 UNLOCKED RETRO BADGE!\n\n✨ [${badgeTitle}] ✨\n\nThis epic accomplishment has been permanently archived in your personal Badge Museum!`);
+          }
+          setUser(d.user);
+          localStorage.setItem('comic_user', JSON.stringify(d.user));
         }
       }
     } catch (e) {
-      // Fallback locally
-      const updatedUser = { 
-        ...user, 
-        virtualCoins: user.virtualCoins + 150000,
-        badges: [
-          ...user.badges, 
-          { badgeId: "b_" + Date.now(), title: "Super Coin Collector Gold", unlockedAt: new Date().toISOString() }
-        ]
-      };
-      setUser(updatedUser);
-      localStorage.setItem('comic_user', JSON.stringify(updatedUser));
-      playRetroSound('coin');
+      console.error("Failed to unlock badge:", e);
     }
   };
 
-  // Checkout process with virtual coin verification
+  // Active reading focus timer for Extremely Rare "Time Alchemist Hourglass" Badge
+  const [readingFocusSeconds, setReadingFocusSeconds] = useState<number>(0);
+
+  useEffect(() => {
+    let interval: any = null;
+    if (currentView === 'reader' && readingBook && user) {
+      interval = setInterval(() => {
+        if (document.visibilityState === 'visible') {
+          setReadingFocusSeconds(prev => {
+            const nextVal = prev + 1;
+            // Unlocks after 45 continuous focused seconds to keep it highly testable and fun!
+            if (nextVal === 45) {
+              earnNamedBadge('badge_time_bending', 'Time Alchemist Hourglass');
+            }
+            return nextVal;
+          });
+        }
+      }, 1000);
+    } else {
+      setReadingFocusSeconds(0);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [currentView, readingBook, user]);
+
+  // Card checkout sequence representing a modern Stripe processing terminal
   const handlePurchaseComic = async (book: Book) => {
     if (!user) {
-      // Intercept guests instantly and redirect to sign-up pipeline
       setRedirectTarget(`/store/book/${book._id}`);
       setAuthMode('signup');
-      setAuthError('Create a quick player account below to unlock and buy this book using your 1,000,000 free coins!');
+      setAuthError('Create a quick player account below to unlock and buy this book!');
       setCurrentView('auth');
       playRetroSound('splat');
       return;
     }
 
-    const priceInfo = pricesPreviewMap[book._id] || { finalPrice: book.basePrice };
-    const costInCoins = priceInfo.finalPrice * 50000;
+    const cardHolder = window.prompt("💳 ENTER CARDHOLDER NAME (Simulated Stripe Secure Checkout):", user.username.toUpperCase());
+    if (cardHolder === null) return; // user cancelled
+    if (!cardHolder.trim()) {
+      alert("Cardholder name is required!");
+      return;
+    }
+
+    const cardNumber = window.prompt("💳 ENTER SIMULATED CARD NUMBER (Stripe demo triggers with any 16-digit card number):", "4242-4242-4242-4242");
+    if (cardNumber === null) return; // user cancelled
+    if (cardNumber.replace(/\D/g, '').length < 16) {
+      alert("Please enter a valid simulated 16-digit card number!");
+      return;
+    }
 
     try {
       const res = await fetch('/api/v1/books/purchase', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user._id, bookId: book._id })
+        body: JSON.stringify({ 
+          userId: user._id, 
+          bookId: book._id,
+          cardHolder: cardHolder,
+          cardNumber: cardNumber,
+          secureToken: "tok_" + Math.random().toString(36).substring(7)
+        })
       });
       const data = await res.json();
       
@@ -380,26 +523,26 @@ export default function App() {
       localStorage.setItem('comic_user', JSON.stringify(data.user));
       playRetroSound('coin');
       
-      // Update books state to reflect ownership, or open reader!
-      alert(`🎉 Hurrah! You successfully bought "${book.title}" for ${costInCoins.toLocaleString()} Virtual Coins! Let's read!`);
+      alert(`🎉 CHECKOUT SUCCESSFUL!\n\nStripe successfully processed the payment of $4.00! Enjoy reading "${book.title}"!`);
+      
+      // Unlock collector badge
+      earnNamedBadge('badge_collector_gold', 'Super Collector Gold');
       launchReaderRoom(book);
     } catch (err) {
       // Fallback local processing
-      if (user.virtualCoins < costInCoins) {
-        alert(`Insufficient fun coins! This book requires ${costInCoins.toLocaleString()} coins, but you only have ${user.virtualCoins.toLocaleString()} coins left. Click 'TREAT BOOSTER' to add more!`);
-        return;
-      }
-      
       const updatedUser: User = {
         ...user,
-        virtualCoins: user.virtualCoins - costInCoins,
         ownedBooks: [...user.ownedBooks, { bookId: book._id, unlockedVia: 'purchase' }],
-        badges: [...user.badges, { badgeId: 'bought_' + book._id, title: `${book.genre} Champion`, unlockedAt: new Date().toISOString() }]
+        badges: [
+          ...user.badges, 
+          { badgeId: 'bought_' + book._id, title: `${book.genre} Master Collector`, unlockedAt: new Date().toISOString() }
+        ]
       };
+      
       setUser(updatedUser);
       localStorage.setItem('comic_user', JSON.stringify(updatedUser));
       playRetroSound('coin');
-      alert(`🎉 [LOCAL MODE] Successfully acquired "${book.title}"! Enjoy the magic story spread!`);
+      alert(`🎉 Stripe Simulated Success! Successfully acquired "${book.title}" for $4.00! Enjoy the story!`);
       launchReaderRoom(book);
     }
   };
@@ -552,13 +695,13 @@ export default function App() {
         _id: "u_" + Math.random().toString(36).substr(2, 9),
         username: formUsername || formEmail.split('@')[0] || "ComicPanda",
         email: formEmail,
-        virtualCoins: 1000000,
+        virtualCoins: 0,
         badges: [{ badgeId: "signup", title: "Young Cadet Explorer", unlockedAt: new Date().toISOString() }],
-        ownedBooks: [{ bookId: "book_super_detectives", unlockedVia: 'giveaway' }]
+        ownedBooks: []
       };
       setUser(mockCadet);
       localStorage.setItem('comic_user', JSON.stringify(mockCadet));
-      setAuthSuccess(`[LOCAL CADET MODE] Welcome! You have been granted 1,000,000 initial free coins!`);
+      setAuthSuccess(`[LOCAL CADET MODE] Welcome to the Academy! Earn beautiful badges for active bragging rights as you explore the catalog!`);
       
       setTimeout(() => {
         setCurrentView('store');
@@ -583,6 +726,13 @@ export default function App() {
 
     if (!genTitle || !genGenre || !genMoral || !genBlurb) {
       setAdminGenError("Wait, Captain! You must input title, genre, moral lesson, and blurb parameters before releasing the magic robots!");
+      playRetroSound('splat');
+      setIsGenerating(false);
+      return;
+    }
+
+    if (genPageCount < 20) {
+      setAdminGenError("Wait, Captain! The page count must be 20 or higher, not 10 or lower.");
       playRetroSound('splat');
       setIsGenerating(false);
       return;
@@ -633,6 +783,215 @@ export default function App() {
       playRetroSound('splat');
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const ALL_SYSTEM_BADGES_DEFINITIONS = [
+    { id: 'signup', title: 'Young Cadet Explorer', description: 'Formed a cadet profile at Morganville academy!', rarity: 'COMMON', rarityScore: 1, icon: '🐣' },
+    { id: 'read_first', title: 'First Reader Chapter', description: 'Completely finished reading 1 comic adventure!', rarity: 'COMMON', rarityScore: 1, icon: '📖' },
+    { id: 'read_5_dog', title: 'Dog Detective Crew', description: 'Investigated and read 5 dog-themed comics!', rarity: 'UNCOMMON', rarityScore: 2, icon: '🐶' },
+    { id: 'read_5_adventure', title: 'Morganville Survivalist', description: 'Mastered 5 distinct high-adrenaline genres!', rarity: 'RARE', rarityScore: 3, icon: '🗺️' },
+    { id: 'badge_time_bending', title: 'Time Alchemist Hourglass', description: 'Read uninterrupted for 45 seconds straight!', rarity: 'EPIC', rarityScore: 4, icon: '⏳' },
+    { id: 'badge_collector_gold', title: 'Super Collector Gold', description: 'Secured first coin or real premium item transaction!', rarity: 'EPIC', rarityScore: 4, icon: '🥇' },
+    { id: 'swamp_sleuth', title: 'Swamp Dwelling Sleuth Crown', description: 'Solved the gold-plated donut case with Jason!', rarity: 'LEGENDARY', rarityScore: 5, icon: '👑' },
+  ];
+
+  const COMIC_GENRES_100 = [
+    "Wacky Adventure", "Comedy Sci-Fi", "Funny Horror", "Action Hero", "Fairy-Tale Parody",
+    "Detective Mystery", "Animal Slapstick", "Space Comedy", "Jungle Romped", "Schoolhouse Giggles",
+    "Super-Hero Goofs", "Monster Mayhem", "Time Travel Troubles", "Undersea Sillies", "Pirate Pranks",
+    "Ninja Mistakes", "Knightly Knuckleheads", "Robot Rambles", "Alien Antics", "Dinosaur Dashes",
+    "Wizardly Wobbles", "Vampire Giggles", "Grave giggles", "Candy Castle Crushes", "Bubblegum Battles",
+    "Zany Zoos", "Amusement Park Panic", "Circus Chuckles", "Kitchen Chaos", "Garden Grooves",
+    "Ice Cream Disasters", "Silly Sports", "Secret Agent Oops", "Caveman Clutter", "Sky-high Shenanigans",
+    "Balloon Bursters", "Lollipop Knights", "Laser-Tag Leopards", "Bubbling Baboons", "Skateboard Squirrels",
+    "T-Rex Drummers", "Flying Fish-Sticks", "Ghostbusters Ghouls", "Peanut-Butter Pandas", "Screaming Snowmen",
+    "Jellybean Jungles", "Marshmallow Monsters", "Wobbly Wizards", "Booming Balloons", "Clown Critters",
+    "Pickle Princes", "Sneezing Snails", "Ticklish Tigers", "Wacky Werewolves", "Soda Volcanoes",
+    "Cheesy Astronauts", "Sloppy Superheroes", "Glitter Gargoyles", "Disco Dinosaurs", "Barking Banjoes",
+    "Singing Seagulls", "Plucky Penguins", "Mustache Monkeys", "Bouncing Bunnies", "Karate Koalas",
+    "Pizza Pilgrims", "Cosmic Cows", "Flying Fleas", "Saucy Cyborgs", "Giggle Gangsters",
+    "Detective Ducks", "Swamp Sleuths", "Munching Mammoths", "Whistling Whales", "Chuckle Chameleons",
+    "Pudding Pixies", "Taco Turtles", "Waffle Walruses", "Doodle Dolphins", "Noodle Octopuses",
+    "Wackier Wombats", "Pretzels & Pegasus", "Gumball Giants", "Hoverboard Hippos", "Popcorn Ponies",
+    "Bacon Bandits", "Cactus Cowboys", "Quacking Queens", "Burping Badgers", "Fluffy Firefighters",
+    "Joking Jellyfish", "Silly Sailors", "Glitchy Gadgets", "Rapping Rabbits", "Merry Moose",
+    "Loopy Llamas", "Fuzzy Aliens", "Snorting Swine", "Wiggle Worms", "Honking Herons", "Dancing Deer",
+    "Chewing Chimps"
+  ];
+
+  const handleTogglePublish = async (bookId: string) => {
+    try {
+      const res = await fetch(`/api/v1/admin/books/${bookId}/toggle-publish`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}`
+        }
+      });
+      if (res.ok) {
+        playRetroSound('sparkle');
+        loadBooksList();
+      } else {
+        alert("Failed to toggle publish status");
+      }
+    } catch (e) {
+      alert("Error toggling publish status");
+    }
+  };
+
+  const fetchGeneratorStatus = async () => {
+    if (!adminToken) return;
+    try {
+      const res = await fetch('/api/v1/admin/auto-generator/status', {
+        headers: { 'Authorization': `Bearer ${adminToken}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIsGeneratorActive(data.isEnabled);
+      }
+    } catch (err) {
+      console.error("Failed to load generator status:", err);
+    }
+  };
+
+  const toggleAutoGeneratorState = async () => {
+    if (!adminToken) return;
+    try {
+      const res = await fetch('/api/v1/admin/auto-generator/toggle', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}` 
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIsGeneratorActive(data.isEnabled);
+        playRetroSound('sparkle');
+        alert(`🔌 Continuous 1-Minute generator has been successfully ${data.isEnabled ? "ENABLED" : "PAUSED"}!`);
+      }
+    } catch (err) {
+      console.error("Failed to toggle generator status:", err);
+    }
+  };
+
+  const forceAutoGenerateNow = async () => {
+    if (!adminToken) return;
+    setIsTriggeringNow(true);
+    playRetroSound('woosh');
+    try {
+      const res = await fetch('/api/v1/admin/auto-generator/generate-now', {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${adminToken}` 
+        }
+      });
+      if (res.ok) {
+        playRetroSound('coin');
+        alert("📚 SUCCESS! A new unpublished child graphic novel has been generated in draft status!");
+        loadBooksList();
+      } else {
+        alert("Failed to force generate draft book content");
+      }
+    } catch (err) {
+      console.error("Failed manual auto-generator trigger:", err);
+    } finally {
+      setIsTriggeringNow(false);
+    }
+  };
+
+  useEffect(() => {
+    if (currentView === 'admin' && adminToken) {
+      fetchGeneratorStatus();
+    }
+  }, [currentView, adminToken]);
+
+  const handleDeleteBook = async (bookId: string) => {
+    const isSure = window.confirm("⚠️ WARNING: Are you sure you want to permanently delete this book from the database? This cannot be undone.");
+    if (!isSure) return;
+
+    try {
+      const res = await fetch(`/api/v1/admin/books/${bookId}/delete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}`
+        }
+      });
+      if (res.ok) {
+        playRetroSound('splat');
+        alert("Book successfully deleted.");
+        loadBooksList();
+      } else {
+        alert("Failed to delete book");
+      }
+    } catch (e) {
+      alert("Error deleting book");
+    }
+  };
+
+  const handleEditBookSelect = (book: Book) => {
+    playRetroSound('woosh');
+    setEditingBookId(book._id);
+    setEditFormTitle(book.title);
+    setEditFormGenre(book.genre);
+    setEditFormAgeGroup(book.targetAgeGroup);
+    setEditFormMoral(book.moralLesson);
+    setEditFormBlurb(book.blurbText);
+    setEditFormPrice(book.basePrice);
+    setEditFormPages([...book.pages]);
+    setAdminSavingSuccess('');
+    setAdminSavingError('');
+  };
+
+  const handleEditBookPageChange = (index: number, newTxt: string) => {
+    const updatedPages = [...editFormPages];
+    updatedPages[index] = {
+      ...updatedPages[index],
+      textContent: newTxt
+    };
+    setEditFormPages(updatedPages);
+  };
+
+  const handleEditBookSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBookId) return;
+
+    setIsAdminSaving(true);
+    setAdminSavingSuccess('');
+    setAdminSavingError('');
+
+    try {
+      const res = await fetch(`/api/v1/admin/books/${editingBookId}/edit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}`
+        },
+        body: JSON.stringify({
+          title: editFormTitle,
+          genre: editFormGenre,
+          targetAgeGroup: editFormAgeGroup,
+          moralLesson: editFormMoral,
+          blurbText: editFormBlurb,
+          basePrice: editFormPrice,
+          pages: editFormPages
+        })
+      });
+
+      const d = await res.json();
+      if (res.ok && d.success) {
+        playRetroSound('sparkle');
+        setAdminSavingSuccess("🌟 BOOK MODIFIED SPECTACULARLY! Details and words have been updated in data/db.json!");
+        loadBooksList();
+      } else {
+        setAdminSavingError(d.error || "Failed to edit book attributes.");
+      }
+    } catch (err: any) {
+      setAdminSavingError("Failed to edit book attributes: server connection lost.");
+    } finally {
+      setIsAdminSaving(false);
     }
   };
 
@@ -762,31 +1121,16 @@ export default function App() {
 
               {user ? (
                 <div className="flex items-center gap-3">
-                  {/* Coins counter in yellow pill badge */}
-                  <div 
-                    onClick={awardFreeCoins}
-                    title="Get Free Coins!"
-                    className="bg-[#FFE600] hover:bg-yellow-400 border-[3px] border-black px-3.5 py-1 rounded-full font-black text-xs md:text-sm text-black flex items-center gap-1 cursor-pointer transition-colors shadow-[2px_2px_0px_0px_#000]"
-                  >
-                    <Coins className="w-4 h-4 fill-amber-300 stroke-black text-black" />
-                    <span>🪙 {user.virtualCoins.toLocaleString()}</span>
-                  </div>
-
-                  {/* My Badges shortcut option */}
-                  <div 
-                    onClick={() => { 
-                      if (user && user.badges.length > 0) {
-                        playRetroSound('sparkle');
-                        alert(`🏆 YOUR BADGES:\n${user.badges.map(b => `✨ ${b.title}`).join('\n')}`);
-                      } else {
-                        playRetroSound('splat');
-                        alert("No extra badges yet! Purchase comics to redeem lovely prizes.");
-                      }
-                    }}
-                    className="bg-[#39FF14] hover:bg-emerald-400 border-[3px] border-black px-3 py-1 rounded-full font-black text-xs text-black cursor-pointer shadow-[2px_2px_0px_0px_#000]"
-                  >
-                    🏆 BADGES
-                  </div>
+                   {/* My Badges shortcut option */}
+                   <div 
+                     onClick={() => { 
+                       playRetroSound('sparkle');
+                       setShowBadgesModal(true);
+                     }}
+                     className="bg-[#39FF14] hover:bg-emerald-400 border-[3px] border-black px-3.5 py-1 rounded-full font-black text-xs text-black cursor-pointer shadow-[2px_2px_0px_0px_#000] flex items-center gap-1 select-none"
+                   >
+                     🏆 BADGES ({user ? user.badges.length : 0})
+                   </div>
 
                   {/* Sign out */}
                   <button 
@@ -846,7 +1190,7 @@ export default function App() {
                   Laugh-out-loud graphic novels for kids aged 8-12. Brand-new wacky stories, freshly drawn, dripping with comic energy. KABOOM!
                 </p>
                 <p className="text-xs font-bold text-gray-800 mt-2">
-                  ⚡ FIRST PURCHASE INSTANT 50% COIN REBATE ACTIVATED!
+                  ⚡ ALL EPIC GRAPHIC NOVELS FLAT FIXED PRICE AT JUST $4.00!
                 </p>
                 
                 <button
@@ -886,53 +1230,50 @@ export default function App() {
               </div>
             </div>
 
-            {/* Fast Promotion Claims Form */}
-            <div className="bg-[#FFE600] border-[8px] border-black rounded-[2.5rem] p-6 md:p-8 mb-10 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] relative">
-              <h3 className="text-xl md:text-2xl font-black uppercase mb-2 flex items-center gap-2">
-                <Gift className="w-6 h-6 stroke-[3px]" /> ENTER FREE GIVEAWAY PASS
-              </h3>
-              <p className="text-xs md:text-sm font-bold mb-4 text-black">
-                Type or copy-paste clean Giveaway target keys (e.g. <span className="underline font-black">give-gator-001</span>, <span className="underline font-black">give-allies-002</span>, or other keys) to bypass checkout and directly launch your reading book rooms!
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <input
-                  type="text"
-                  value={directPromoKey}
-                  onChange={(e) => setDirectPromoKey(e.target.value)}
-                  placeholder="Giveaway Key (e.g. give-gator-001)"
-                  className="flex-1 bg-white border-4 border-black text-lg font-bold px-4 py-2 rounded-xl placeholder:text-gray-400 focus:outline-none"
-                />
-                <button
-                  onClick={() => processPromotionalClaim(directPromoKey)}
-                  disabled={isClaiming}
-                  className="bg-[#39FF14] text-black font-black border-4 border-black px-6 py-2 rounded-xl uppercase tracking-wider hover:scale-105 active:translate-y-1 comic-shadow-sm cursor-pointer disabled:opacity-50"
-                >
-                  {isClaiming ? "RESOLVING BYPASS..." : "CLAIM & LAUNCH 🚀"}
-                </button>
-              </div>
 
-              {claimStatus.error && (
-                <div className="mt-3 bg-red-100 border-2 border-red-600 p-2 text-sm font-black text-red-700">
-                  ⚠️ {claimStatus.error}
-                </div>
-              )}
-              {claimStatus.success && (
-                <div className="mt-3 bg-green-100 border-2 border-green-600 p-2 text-sm font-black text-green-700 flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5" /> {claimStatus.message}
-                </div>
-              )}
-            </div>
 
             {/* Book Cards Grid Title Header */}
-            <div id="books-list-grid" className="flex items-center justify-between mb-8">
-              <h2 className="text-3xl md:text-4xl font-display font-black text-black select-none tracking-tight flex items-center gap-2">
-                🔥 HOT OFF THE PRESS
-              </h2>
-              <button 
-                onClick={loadBooksList}
-                className="bg-[#00D4FF] border-[3px] border-black px-4 py-1.5 rounded-full font-black text-xs uppercase hover:bg-neutral-100 active:translate-y-0.5 shadow-[2px_2px_0px_0px_#000] cursor-pointer"
+            <div id="books-list-grid" className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+              <div>
+                <h2 className="text-3xl md:text-4xl font-display font-black text-black select-none tracking-tight flex items-center gap-2">
+                  🔥 HOT OFF THE PRESS
+                </h2>
+                <p className="text-xs font-bold text-gray-700 mt-1">Discover dynamic comic stories that help you build values & master big emotions!</p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={loadBooksList}
+                  className="bg-[#00D4FF] border-[3px] border-black px-4 py-1.5 rounded-full font-black text-xs uppercase hover:bg-neutral-100 active:translate-y-0.5 shadow-[2px_2px_0px_0px_#000] cursor-pointer"
+                >
+                  🔄 REFRESH
+                </button>
+              </div>
+            </div>
+
+            {/* CUSTOM TABS FOR MY COLLECTION & ALL COMICS */}
+            <div className="flex border-4 border-black mb-8 p-1 bg-black rounded-2xl select-none">
+              <button
+                type="button"
+                onClick={() => { playRetroSound('woosh'); setStoreFilter('all'); }}
+                className={`flex-1 py-3 text-center font-black uppercase text-sm rounded-xl transition-all cursor-pointer ${
+                  storeFilter === 'all' 
+                    ? 'bg-[#FFE600] text-black border-2 border-black shadow-[3px_3px_0_0_#FFF]' 
+                    : 'text-white hover:text-[#FFE600]'
+                }`}
               >
-                🔄 REFRESH
+                🌟 ALL ADVENTURE COMICS
+              </button>
+              <button
+                type="button"
+                onClick={() => { playRetroSound('woosh'); setStoreFilter('collection'); }}
+                className={`flex-1 py-3 text-center font-black uppercase text-sm rounded-xl transition-all cursor-pointer ${
+                  storeFilter === 'collection' 
+                    ? 'bg-[#FF55BB] text-black border-2 border-black shadow-[3px_3px_0_0_#FFF]' 
+                    : 'text-white hover:text-[#FF55BB]'
+                }`}
+              >
+                🗝️ MY PERSONAL COLLECTION ({user ? books.filter(b => isBookOwned(b._id)).length : 0} Owned)
               </button>
             </div>
 
@@ -943,15 +1284,47 @@ export default function App() {
                 <p className="text-sm font-bold text-gray-505">Grabbing cute images and hilarious dialogue panels!</p>
               </div>
             ) : books.length === 0 ? (
-              <div className="bg-white border-4 border-black p-12 text-center comic-shadow">
-                <p className="text-xl font-black">No comics published in store yet! Type Jasons Game key to access the AI generation router engine.</p>
+              <div className="bg-white border-4 border-black p-12 text-center rounded-3xl comic-shadow">
+                <p className="text-xl font-black text-gray-800">Our authors and artists are currently busy sketching and writing some blockbuster new additions! Check back very shortly for updates. 🎨</p>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-                {books.map((book) => {
+            ) : (() => {
+              const filteredBooks = books.filter((b) => {
+                // Ensure only published books are visible to clients
+                if (!b.isPublished) return false;
+                
+                if (storeFilter === 'collection') {
+                  return isBookOwned(b._id);
+                }
+                return true;
+              });
+
+              if (filteredBooks.length === 0) {
+                return (
+                  <div className="bg-white border-4 border-black p-12 text-center rounded-3xl comic-shadow">
+                    <p className="text-2xl font-black uppercase mb-2">🎈 NO MATCHING COMICS FOUND!</p>
+                    {storeFilter === 'collection' ? (
+                      <div>
+                        <p className="text-md font-bold text-gray-700">You do not own any books in your personal collection yet!</p>
+                        <button
+                          onClick={() => { playRetroSound('woosh'); setStoreFilter('all'); }}
+                          className="mt-4 bg-[#FFE600] text-black font-black border-4 border-black px-6 py-2.5 uppercase text-xs"
+                        >
+                          🛒 EXPLORE BOOK STORE CAFE →
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-md font-bold text-gray-700">The comic café shelf is currently being restocked by our artists. Stay tuned! 🎨</p>
+                    )}
+                  </div>
+                );
+              }
+
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+                  {filteredBooks.map((book) => {
                   const owned = isBookOwned(book._id);
                   const priceInfo = pricesPreviewMap[book._id];
-                  const finalCostInCoins = priceInfo ? priceInfo.finalPrice * 50000 : book.basePrice * 50000;
+                  const finalCostInCoins = Math.round((priceInfo ? priceInfo.finalPrice : book.basePrice) * 10);
                   const firstTimerOffer = priceInfo?.isFirstOrder;
 
                   // Determine colors based on book genres matching screenshots
@@ -1046,10 +1419,10 @@ export default function App() {
                             ) : (
                               <button
                                 onClick={() => handlePurchaseComic(book)}
-                                className={`border-[4px] border-black px-5 py-2.5 rounded-2xl font-black text-sm text-black uppercase shadow-[4px_4px_0px_0px_#000000] hover:scale-105 active:translate-y-0.5 transition-transform cursor-pointer ${genreColorClass} flex flex-col items-center leading-none`}
+                                className="border-[4px] border-black bg-[#39FF14] hover:bg-emerald-400 px-5 py-2.5 rounded-2xl font-black text-sm text-black uppercase shadow-[4px_4px_0px_0px_#000000] hover:scale-105 active:translate-y-0.5 transition-transform cursor-pointer flex flex-col items-center justify-center leading-none"
                               >
-                                <span className="text-[10px] opacity-75 mb-0.5">BUY NOW</span>
-                                <span className="font-bold text-xs">🪙 {(finalCostInCoins / 1000).toFixed(0)}K COINS</span>
+                                <span className="text-[8px] opacity-95 font-black tracking-wide block">STRIPE CARD ORDER</span>
+                                <span className="font-black text-xs mt-1 block">💳 BUY FOR $4.00</span>
                               </button>
                             )}
                           </div>
@@ -1073,7 +1446,8 @@ export default function App() {
                   );
                 })}
               </div>
-            )}
+            );
+          })()}
           </div>
         )}
 
@@ -1137,17 +1511,15 @@ export default function App() {
 
                 {/* Field 2: Genre */}
                 <div>
-                  <label className="block text-md font-black uppercase mb-1">Adventure Genre</label>
+                  <label className="block text-md font-black uppercase mb-1">Adventure Genre (100 Radical Choices Available!)</label>
                   <select
                     value={genGenre}
                     onChange={(e) => setGenGenre(e.target.value)}
                     className="w-full bg-white border-4 border-black p-3 font-bold cursor-pointer"
                   >
-                    <option value="Wacky Adventure">Wacky Adventure</option>
-                    <option value="Comedy Sci-Fi">Comedy Sci-Fi</option>
-                    <option value="Funny Horror">Funny Horror</option>
-                    <option value="Action Hero">Action Hero</option>
-                    <option value="Fairy-Tale Parody">Fairy-Tale Parody</option>
+                    {COMIC_GENRES_100.map((genreOption) => (
+                      <option key={genreOption} value={genreOption}>{genreOption}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -1207,8 +1579,8 @@ export default function App() {
                   <label className="block text-md font-black uppercase mb-1">Page Count Specs</label>
                   <input
                     type="number"
-                    min="2"
-                    max="10"
+                    min="20"
+                    max="100"
                     value={genPageCount}
                     onChange={(e) => setGenPageCount(Number(e.target.value))}
                     className="w-full bg-white border-4 border-black p-3 font-bold"
@@ -1264,20 +1636,216 @@ export default function App() {
               </div>
             </form>
 
-            <div className="mt-12 pt-8 border-t-4 border-black">
-              <h3 className="text-2xl font-black mb-4 uppercase">👑 PROMOTIONAL CLAIM MATRIX LOG</h3>
-              <p className="text-sm font-bold text-gray-700 mb-4">
-                Administrators copy distinct bypass links looking exactly like the pattern below. Use these links with youngsters or giveaway events so users instantly unlock the custom stories.
+            {/* 1-MINUTE BACKGROUND AUTO-GENERATION PANEL */}
+            <div className="mt-8 p-6 bg-yellow-50 border-4 border-black border-dashed rounded-3xl">
+              <span className="bg-purple-600 text-white font-black text-xs uppercase px-3 py-1 border-2 border-black rotate-[1deg] inline-block mb-2">
+                ⚙️ BACKGROUND COMIC FACTORY
+              </span>
+              <h2 className="text-2xl font-black uppercase text-black">
+                Continuous 1-Minute Draft Generator
+              </h2>
+              <p className="text-sm font-bold text-gray-700 mt-1 max-w-xl">
+                When active, our beautiful story-weaver script synthesizes an unpublished high-style 50-page graphic novel draft every minute. You can then review, edit, publish or delete them securely below.
               </p>
 
-              <div className="bg-gray-100 border-4 border-black p-4 overflow-x-auto">
+              <div className="mt-6 flex flex-wrap gap-4 items-center">
+                <button
+                  type="button"
+                  onClick={toggleAutoGeneratorState}
+                  className={`border-4 border-black px-6 py-3.5 rounded-2xl font-black text-sm uppercase tracking-wide transition-all scale-102 cursor-pointer shadow-[3px_3px_0_0_#000] active:translate-y-0.5 ${
+                    isGeneratorActive 
+                      ? "bg-red-500 hover:bg-red-400 text-white" 
+                      : "bg-[#39FF14] hover:bg-emerald-400 text-black"
+                  }`}
+                >
+                  {isGeneratorActive 
+                    ? "🔴 PAUSE CONTINUOUS 1-MIN GENERATOR" 
+                    : "🟢 START CONTINUOUS 1-MIN GENERATION"}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isTriggeringNow}
+                  onClick={forceAutoGenerateNow}
+                  className="bg-cyan-400 hover:bg-cyan-300 disabled:opacity-60 text-black border-4 border-black px-6 py-3.5 rounded-2xl font-black text-sm uppercase tracking-wide transition-all scale-102 cursor-pointer shadow-[3px_3px_0_0_#000] active:translate-y-0.5"
+                >
+                  {isTriggeringNow 
+                    ? "💥 GENERATING EXQUISITE STORY DRAFT..." 
+                    : "⚡ GENERATE 1 HIGH-STYLE DRAFT NOW"}
+                </button>
+
+                <div className="flex items-center gap-2 px-3 py-2 bg-white border-2 border-black rounded-lg font-mono text-xs font-black">
+                  <span>STATUS:</span>
+                  <span className={isGeneratorActive ? "text-emerald-600 animate-pulse" : "text-red-500"}>
+                    {isGeneratorActive ? "● ONLINE & WEAVING" : "○ PAUSED"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* MASTER BOOK ACTIONS PANEL */}
+            <div className="mt-12 pt-8 border-t-4 border-black">
+              <h3 className="text-3xl font-black mb-1 uppercase text-black tracking-tight">
+                👑 MASTER BOOK COMPREHENSIVE CONTROL CENTER
+              </h3>
+              <p className="text-sm font-bold text-gray-700 mb-6">
+                Administrators can read, edit details & words screen-by-screen, publish/unpublish, and delete books live!
+              </p>
+
+              {editingBookId ? (
+                /* LIVE PAGE EDITOR PANEL */
+                <div className="bg-[#FFF59D] border-4 border-black p-6 mb-8 comic-shadow">
+                  <div className="flex justify-between items-center border-b-2 border-black pb-4 mb-4">
+                    <h4 className="text-xl font-black uppercase text-black">
+                      📝 EDITING THE INNER PAGES & DETAILS: "{editFormTitle}"
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => { playRetroSound('woosh'); setEditingBookId(null); }}
+                      className="bg-black text-white px-3 py-1 font-black text-xs uppercase"
+                    >
+                      ✕ Cancel Edit
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleEditBookSubmit} className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-black uppercase mb-1">Comic Book Title</label>
+                        <input
+                          type="text"
+                          value={editFormTitle}
+                          onChange={(e) => setEditFormTitle(e.target.value)}
+                          className="w-full bg-white border-2 border-black p-2 font-bold text-sm"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black uppercase mb-1">Adventure Genre</label>
+                        <select
+                          value={editFormGenre}
+                          onChange={(e) => setEditFormGenre(e.target.value)}
+                          className="w-full bg-white border-2 border-black p-2 font-bold text-sm"
+                        >
+                          {COMIC_GENRES_100.map((g) => (
+                            <option key={g} value={g}>{g}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black uppercase mb-1">Price ($ USD)</label>
+                        <input
+                          type="number"
+                          step="0.50"
+                          value={editFormPrice}
+                          onChange={(e) => setEditFormPrice(Number(e.target.value))}
+                          className="w-full bg-white border-2 border-black p-2 font-bold text-sm"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-black uppercase mb-1">Target Age Group</label>
+                        <input
+                          type="text"
+                          value={editFormAgeGroup}
+                          onChange={(e) => setEditFormAgeGroup(e.target.value)}
+                          className="w-full bg-white border-2 border-black p-2 font-bold text-sm"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black uppercase mb-1">Moral Lesson</label>
+                        <input
+                          type="text"
+                          value={editFormMoral}
+                          onChange={(e) => setEditFormMoral(e.target.value)}
+                          className="w-full bg-white border-2 border-black p-2 font-bold text-sm"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-black uppercase mb-1">Book Description Blurb</label>
+                      <textarea
+                        rows={2}
+                        value={editFormBlurb}
+                        onChange={(e) => setEditFormBlurb(e.target.value)}
+                        className="w-full bg-white border-2 border-black p-2 font-bold text-sm"
+                        required
+                      ></textarea>
+                    </div>
+
+                    {/* INTERACTIVE PAGE-BY-PAGE WORD EDITOR */}
+                    <div className="border-t-2 border-black pt-4">
+                      <h5 className="text-lg font-black uppercase mb-3">📖 SCAN & MODIFY LIVE PAGES TEXT:</h5>
+                      <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
+                        {editFormPages.map((page, pIdx) => (
+                          <div key={pIdx} className="bg-white border-2 border-black p-3 flex gap-4 items-start">
+                            <div className="w-16 h-16 border-2 border-black flex-shrink-0 bg-gray-100 overflow-hidden">
+                              <img src={page.imageUrl} alt="" className="w-full h-full object-cover" />
+                            </div>
+                            <div className="flex-1">
+                              <span className="text-xs font-black text-magenta-800 uppercase block mb-1">
+                                PAGE {page.pageNumber} ILLUSTRATION SCENE WORDS:
+                              </span>
+                              <textarea
+                                value={page.textContent}
+                                onChange={(e) => handleEditBookPageChange(pIdx, e.target.value)}
+                                rows={2}
+                                className="w-full border border-gray-400 p-2 font-bold text-xs"
+                                placeholder="Edit actual narration/speech bubble text..."
+                              ></textarea>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {adminSavingError && (
+                      <div className="bg-red-100 text-red-700 font-extrabold p-2 text-xs border border-red-500">
+                        {adminSavingError}
+                      </div>
+                    )}
+                    {adminSavingSuccess && (
+                      <div className="bg-green-100 text-green-700 font-extrabold p-2 text-xs border border-green-500">
+                        {adminSavingSuccess}
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <button
+                        type="submit"
+                        disabled={isAdminSaving}
+                        className="bg-black text-[#39FF14] border-4 border-black px-6 py-2 font-black uppercase hover:scale-103 active:translate-y-1"
+                      >
+                        {isAdminSaving ? "SAVING..." : "💾 SAVE UPDATED COMIC BOOK 🚀"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { playRetroSound('woosh'); setEditingBookId(null); }}
+                        className="bg-gray-300 text-black border-4 border-black px-6 py-2 font-black uppercase hover:bg-gray-400"
+                      >
+                        CLOSE EDITOR
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              ) : null}
+
+              {/* LIVE TABLE LISTING OF ALL DYNAMIC BOOKS */}
+              <div className="bg-white border-4 border-black p-4 overflow-x-auto comic-shadow-sm">
                 <table className="w-full text-left font-bold text-sm">
                   <thead>
-                    <tr className="border-b-2 border-black uppercase text-xs">
-                      <th className="pb-2">Book Title</th>
-                      <th className="pb-2">Slug Room Isolation</th>
-                      <th className="pb-2">Giveaway Key</th>
-                      <th className="pb-2">System Promo Bypass Link</th>
+                    <tr className="border-b-4 border-black uppercase text-xs">
+                      <th className="pb-3">Book Cover & Title</th>
+                      <th className="pb-3">Genre</th>
+                      <th className="pb-3">Pricing Base</th>
+                      <th className="pb-3">Status</th>
+                      <th className="pb-3 text-right">Interactive Command Options</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-black">
@@ -1285,11 +1853,67 @@ export default function App() {
                       const giveawayUrl = `${window.location.protocol}//${window.location.host}/api/v1/promotions/claim?key=${b.giveawayId}`;
                       return (
                         <tr key={b._id} className="hover:bg-yellow-50">
-                          <td className="py-3 pr-2 text-black font-black">{b.title}</td>
-                          <td className="py-3 text-cyan-700 font-mono text-xs">{b.secretSlug}</td>
-                          <td className="py-3 text-magenta-700 font-mono font-black">{b.giveawayId}</td>
-                          <td className="py-3 font-mono text-xs select-all text-gray-800 bg-white p-2 border border-dashed border-gray-400">
-                            {giveawayUrl}
+                          <td className="py-4 pr-2">
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 border-2 border-black bg-cyan-100 overflow-hidden flex-shrink-0">
+                                <img src={b.coverImageUrl || "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=120"} className="w-full h-full object-cover" />
+                              </div>
+                              <div>
+                                <span className="font-black text-black block text-sm md:text-base leading-tight">{b.title}</span>
+                                <span className="text-[10px] text-gray-500 font-mono">ID: {b._id}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-4">
+                            <span className="bg-[#FFE600] text-black text-xs font-black px-2 py-0.5 border-2 border-black uppercase inline-block">
+                              {b.genre}
+                            </span>
+                          </td>
+                          <td className="py-4 font-mono text-cyan-800 font-black">
+                            ${b.basePrice.toFixed(2)} USD
+                          </td>
+                          <td className="py-4">
+                            {b.isPublished ? (
+                              <span className="bg-[#39FF14] text-black border-2 border-black text-[10px] font-black px-2 py-0.5 uppercase">
+                                PUBLISHED (ACTIVE) ✅
+                              </span>
+                            ) : (
+                              <span className="bg-red-500 text-white border-2 border-black text-[10px] font-black px-2 py-0.5 uppercase">
+                                UNPUBLISHED (DRAFT) 🛑
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-4 text-right">
+                            <div className="flex flex-wrap gap-1 justify-end">
+                              <button
+                                onClick={() => { playRetroSound('woosh'); launchReaderRoom(b); }}
+                                className="bg-sky-400 hover:bg-sky-500 text-black font-black text-xs px-2 py-1 border-2 border-black uppercase"
+                                title="Admin instant book review launcher"
+                              >
+                                READ 📖
+                              </button>
+                              <button
+                                onClick={() => handleEditBookSelect(b)}
+                                className="bg-[#FF55BB] hover:bg-pink-400 text-black font-black text-xs px-2 py-1 border-2 border-black uppercase"
+                              >
+                                EDIT WORDS 📝
+                              </button>
+                              <button
+                                onClick={() => handleTogglePublish(b._id)}
+                                className="bg-yellow-300 hover:bg-yellow-400 text-black font-black text-xs px-2 py-1 border-2 border-black uppercase"
+                              >
+                                {b.isPublished ? 'UNPUBLISH ⚙️' : 'PUBLISH ⚡'}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteBook(b._id)}
+                                className="bg-red-600 hover:bg-red-700 text-white font-black text-xs px-2 py-1 border-2 border-black uppercase font-mono"
+                              >
+                                DELETE ✕
+                              </button>
+                            </div>
+                            <div className="mt-2 text-[10px] font-mono select-all bg-gray-100 p-1 border border-dashed border-gray-400 text-left truncate max-w-xs inline-block">
+                              Promo claim bypass: {giveawayUrl}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1316,8 +1940,8 @@ export default function App() {
               </h2>
               <p className="text-xs font-bold text-gray-600 mt-1">
                 {authMode === 'signup' 
-                  ? "Claim 1,000,000 free virtual coins instantly to start buying and reading high-energy comics!" 
-                  : "Input your email and password to reload your active badges and coin bank."}
+                  ? "Create your custom player profile to start unlocking high-energy graphic novels for $4.00!" 
+                  : "Input your email and password to reload your active badges and personal museum history."}
               </p>
             </div>
 
@@ -1394,7 +2018,7 @@ export default function App() {
                 type="submit"
                 className="w-full bg-[#39FF14] text-black font-black border-4 border-black py-4 uppercase text-lg tracking-wide comic-shadow-sm comic-shadow-hover cursor-pointer"
               >
-                {authMode === 'signup' ? "🎡 REGISTER & GET COINS" : "🚀 ACCESS PROFILE"}
+                {authMode === 'signup' ? "🎡 REGISTER & ENTER ACADEMY" : "🚀 ACCESS PROFILE"}
               </button>
             </form>
 
@@ -1434,6 +2058,31 @@ export default function App() {
             >
               ✕ EXIT BACK LIBRARY
             </button>
+          </div>
+
+          {/* BOLD HIGH-CONTRAST COMIC PROGRESS BAR */}
+          <div className="max-w-7xl mx-auto w-full mb-4">
+            {(() => {
+              const maxSpreads = Math.ceil(readingBook.pages.length / 2);
+              const progressPercent = maxSpreads > 0 
+                ? Math.min(100, Math.round(((currentSpreadIndex + 1) / maxSpreads) * 100)) 
+                : 100;
+              return (
+                <div className="w-full bg-white border-4 border-black p-1 rounded-full relative overflow-hidden flex items-center shadow-[4px_4px_0_0_#000] select-none">
+                  <div 
+                    className="bg-[#39FF14] h-5 rounded-full border-r-4 border-black transition-all duration-300 flex items-center justify-end pr-3"
+                    style={{ width: `${progressPercent}%`, minWidth: '8%' }}
+                  >
+                    <span className="text-[10px] font-black text-black tracking-widest leading-none">
+                      {progressPercent}%
+                    </span>
+                  </div>
+                  <span className="absolute right-4 text-[9px] font-black text-black uppercase tracking-wider">
+                    ⚡ PAGE STORY PROGRESS ({currentSpreadIndex + 1} / {maxSpreads} SPREADS)
+                  </span>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Physical open book rendering spread */}
@@ -1477,9 +2126,6 @@ export default function App() {
                             />
                             <div className="absolute top-2 left-2 bg-yellow-300 border-2 border-black text-xs font-black px-2 uppercase">
                               PAGE {leftPage.pageNumber}
-                            </div>
-                            <div className="absolute bottom-2 right-2 bg-magenta-500 border-2 border-black text-[9px] font-black text-white px-1 uppercase tracking-wider animate-pulse">
-                              ART WORK: AI GENERATED 🎡
                             </div>
                           </div>
 
@@ -1533,9 +2179,6 @@ export default function App() {
                             <div className="absolute top-2 left-2 bg-yellow-300 border-2 border-black text-xs font-black px-2 uppercase">
                               PAGE {rightPage.pageNumber}
                             </div>
-                            <div className="absolute bottom-2 right-2 bg-yellow-400 border-2 border-black text-[9px] font-black text-black px-1 uppercase tracking-wider animate-pulse">
-                              ART WORK: DALL-E 🎡
-                            </div>
                           </div>
 
                           {/* Sound effect comic badge if present */}
@@ -1559,19 +2202,22 @@ export default function App() {
                         </div>
                       ) : (
                         <div className="h-full flex flex-col items-center justify-center bg-gray-50 border-2 border-dashed border-gray-400 p-8">
-                          <p className="text-lg font-black text-gray-500">🏆 COIN COMPLETED BONUS!</p>
+                          <p className="text-lg font-black text-gray-500">🏆 CHAPTER COMPLETE STATUS!</p>
                           <p className="text-xs font-bold text-center text-gray-400 mb-4">You have finished reading this comic book completely!</p>
                           
                           {user ? (
                             <button
                               onClick={async () => {
-                                playRetroSound('coin');
-                                alert("🎉 Awesome job Cadet! We are awarding you 50,000 Virtual Coins as completing badge stars!");
+                                playRetroSound('sparkle');
+                                alert(`🎉 Spectacular mission accomplished, Cadet!\n\nYou've successfully earned the "${readingBook.title} Complete Champion" badge! View it in your museum for bragging rights.`);
                                 try {
-                                  const res = await fetch(`/api/v1/users/${user._id}/award-coins`, {
+                                  const res = await fetch(`/api/v1/users/${user._id}/earn-badge`, {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ amount: 50000, badgeTitle: `Finished Book ${readingBook.title}` })
+                                    body: JSON.stringify({ 
+                                      badgeId: `completed_${readingBook._id}`, 
+                                      badgeTitle: `${readingBook.title} Complete Champion` 
+                                    })
                                   });
                                   if (res.ok) {
                                     const d = await res.json();
@@ -1581,14 +2227,28 @@ export default function App() {
                                     }
                                   }
                                 } catch(e){}
+
+                                // Award other cool badges
+                                setTimeout(() => {
+                                  earnNamedBadge('read_first', 'First Reader Chapter');
+                                }, 1500);
+
+                                if (user && user.ownedBooks && user.ownedBooks.length >= 2) {
+                                  setTimeout(() => {
+                                    earnNamedBadge('read_5_dog', 'Dog Detective Crew');
+                                  }, 4000);
+                                  setTimeout(() => {
+                                    earnNamedBadge('read_5_adventure', 'Morganville Survivalist');
+                                  }, 6500);
+                                }
                               }}
-                              className="bg-[#FFE600] border-4 border-black px-4 py-2 font-black text-xs uppercase hover:bg-neutral-100 active:translate-y-1 comic-shadow-sm cursor-pointer"
+                              className="bg-[#39FF14] text-black border-4 border-black px-4 py-2 font-black text-xs uppercase hover:bg-neutral-100 active:translate-y-1 comic-shadow-sm cursor-pointer"
                             >
-                              🎁 CLAIM BOOK BADGE & COINS
+                              🎁 CLAIM BRAGGING RIGHTS MUSEUM BADGE
                             </button>
                           ) : (
                             <p className="text-xs font-semibold text-center text-red-500 uppercase">
-                              Sign up for free to save your history and earn coin treasures!
+                              Sign up for free to save your history and earn cool bragging-rights badges!
                             </p>
                           )}
                         </div>
@@ -1628,17 +2288,140 @@ export default function App() {
         </div>
       )}
 
-      {/* 5. BOTTOM BAR / RADICAL STATUS FOOTER */}
-      {currentView !== 'reader' && (
-        <footer className="h-14 bg-black text-white px-8 flex items-center justify-between font-bold text-xs md:text-sm tracking-widest fixed bottom-0 left-0 right-0 z-40 border-t-4 border-black">
-          <div className="flex gap-4 md:gap-8 overflow-hidden whitespace-nowrap">
-            <span className="text-[#39FF14] animate-pulse">● SYSTEM STATUS: RADICAL ⚡</span>
-            <span className="hidden md:inline text-cyan-300">PLAYERS ON: 12,459 COMMITTED CADETS</span>
+      {/* BADGES MUSEUM / INDEX DISPLAY MODAL */}
+      {showBadgesModal && user && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+          <div className="bg-[#FFFEE5] border-8 border-black max-w-2xl w-full max-h-[85vh] overflow-y-auto rounded-3xl p-6 md:p-8 comic-shadow relative">
+            
+            {/* Absolute close button */}
+            <button
+              onClick={() => { playRetroSound('woosh'); setShowBadgesModal(false); }}
+              className="absolute -top-3 -right-3 bg-red-500 hover:bg-red-400 text-white font-black border-4 border-black p-2.5 rounded-full rotate-6 hover:rotate-12 transition-all cursor-pointer shadow-[3px_3px_0_0_#000]"
+              title="Close Badge Chest"
+            >
+              ✕ CLOSE
+            </button>
+
+            <div className="text-center mb-6">
+              <span className="bg-[#FFE600] text-black text-xs font-black px-3 py-1 border-2 border-black uppercase rotate-[-2deg] inline-block mb-2">
+                🏆 MORGANVILLE HALL OF HEROES
+              </span>
+              <h3 className="text-3xl md:text-5xl font-black uppercase text-black tracking-tighter">
+                YOUR BADGE INDEX CHEST
+              </h3>
+              <p className="text-sm font-bold text-gray-700 max-w-md mx-auto mt-2">
+                Own multiple dynamic books, finished reading volumes, or continuous hour logs to unlock rare collectibles! 
+                <span className="text-amber-800 font-extrabold block mt-1">✨ Show off your unlocked achievements with bragging-rights collector ranks!</span>
+              </p>
+            </div>
+
+            {/* Core statistics cards */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-white border-4 border-black p-3 text-center rounded-2xl shadow-[4px_4px_0_0_#000]">
+                <span className="text-[10px] font-black text-gray-400 block uppercase">Badges Collected</span>
+                <span className="text-3xl font-black text-pink-600">{user ? user.badges.length : 0}</span>
+              </div>
+              <div className="bg-white border-4 border-black p-3 text-center rounded-2xl shadow-[4px_4px_0_0_#000]">
+                <span className="text-[10px] font-black text-gray-400 block uppercase">Collector Rank</span>
+                <span className="text-xs font-black text-emerald-500 uppercase block mt-2">
+                  {(!user || user.badges.length <= 1) ? "🌱 Young Recruit" :
+                   user.badges.length <= 3 ? "🥈 Silver Detective" :
+                   user.badges.length <= 5 ? "🥇 Golden Alchemist" : "👑 Cosmic Overlord"}
+                </span>
+              </div>
+            </div>
+
+            {/* Badges Index List */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b-2 border-black pb-2">
+                <span className="text-xs font-black uppercase text-gray-500">🔻 COMMON UNLOCKED (TOP)</span>
+                <span className="text-xs font-black uppercase text-gray-500">⭐ RAREST COLLECTIBLES (BOTTOM)</span>
+              </div>
+
+              {!user || user.badges.length === 0 ? (
+                <div className="bg-white border-4 border-black p-8 text-center rounded-2xl">
+                  <p className="text-lg font-black text-gray-400 uppercase">Your Badge Case is Empty! 🐣</p>
+                  <p className="text-xs font-bold text-gray-500 mt-1">Unlock badges by reading, purchasing, and staying focused in the Story Reader.</p>
+                </div>
+              ) : (() => {
+                const userBadges = user.badges || [];
+                const mergedBadgesList = userBadges.map((ub) => {
+                  const foundDef = ALL_SYSTEM_BADGES_DEFINITIONS.find(
+                    (def) => ub.badgeId === def.id || ub.title.toLowerCase().includes(def.title.toLowerCase())
+                  );
+                  if (foundDef) {
+                    return {
+                      ...foundDef,
+                      unlockedAt: ub.unlockedAt || new Date().toISOString()
+                    };
+                  } else {
+                    return {
+                      id: ub.badgeId,
+                      title: ub.title,
+                      description: `Awarded during your active discovery and reading trials in the comic arena.`,
+                      rarity: 'UNCOMMON' as const,
+                      rarityScore: 2,
+                      icon: '🏆',
+                      unlockedAt: ub.unlockedAt || new Date().toISOString()
+                    };
+                  }
+                });
+
+                // Rarest with highest rarityScore go to the BOTTOM
+                mergedBadgesList.sort((a, b) => a.rarityScore - b.rarityScore);
+
+                return (
+                  <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-2">
+                    {mergedBadgesList.map((badge, idx) => {
+                      let rarityBadgeClass = "bg-gray-100 text-black";
+                      if (badge.rarity === 'UNCOMMON') rarityBadgeClass = "bg-sky-400 text-black";
+                      else if (badge.rarity === 'RARE') rarityBadgeClass = "bg-[#FF007F] text-white";
+                      else if (badge.rarity === 'EPIC') rarityBadgeClass = "bg-[#9933FF] text-white animate-pulse";
+                      else if (badge.rarity === 'LEGENDARY') rarityBadgeClass = "bg-[#39FF14] text-black border border-black";
+
+                      return (
+                        <div 
+                          key={idx} 
+                          className="bg-white border-4 border-black rounded-2xl p-4 flex items-center gap-4 hover:bg-yellow-50 transition-colors shadow-[3px_3px_0_0_#000]"
+                        >
+                          <div className="w-12 h-12 rounded-full border-2 border-black bg-cyan-100 flex items-center justify-center text-2xl shadow-[2px_2px_0_0_#000]">
+                            {badge.icon}
+                          </div>
+                          <div className="flex-1 text-left min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-black text-black text-sm md:text-base leading-none tracking-tight">
+                                {badge.title}
+                              </h4>
+                              <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border border-black ${rarityBadgeClass}`}>
+                                {badge.rarity}
+                              </span>
+                            </div>
+                            <p className="text-xs font-semibold text-gray-500 mt-1 line-clamp-1">
+                              {badge.description}
+                            </p>
+                            <span className="text-[9px] text-gray-400 font-mono italic block mt-0.5">
+                              Claimed on: {new Date(badge.unlockedAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
+            </div>
+
+            <div className="mt-6 pt-4 border-t-2 border-black flex justify-center">
+              <button
+                onClick={() => { playRetroSound('woosh'); setShowBadgesModal(false); }}
+                className="bg-black text-[#FFE600] font-black border-4 border-black px-8 py-3 uppercase tracking-wider hover:bg-neutral-800"
+              >
+                GOT IT! BACK TO STORE
+              </button>
+            </div>
           </div>
-          <div className="flex gap-4">
-            <span className="text-[#FFE600]">V1.3.1 - SECURE SHIELD ACTIVE</span>
-          </div>
-        </footer>
+        </div>
       )}
 
     </div>
