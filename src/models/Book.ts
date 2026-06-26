@@ -15,6 +15,7 @@ export class BookInstance implements BookSchemaType {
   giveawayId: string;
   pages: BookPageType[];
   isPublished: boolean;
+  isPictureBook?: boolean;
 
   constructor(fields: any) {
     this._id = fields._id || "";
@@ -31,6 +32,7 @@ export class BookInstance implements BookSchemaType {
     this.giveawayId = fields.giveawayId || "";
     this.pages = fields.pages || [];
     this.isPublished = fields.isPublished ?? false;
+    this.isPictureBook = fields.isPictureBook ?? false;
   }
 
   async save(): Promise<BookInstance> {
@@ -48,7 +50,8 @@ export class BookInstance implements BookSchemaType {
         secretSlug: this.secretSlug,
         giveawayId: this.giveawayId,
         pages: this.pages,
-        isPublished: this.isPublished
+        isPublished: this.isPublished,
+        isPictureBook: this.isPictureBook
       });
       this._id = created._id;
     } else {
@@ -65,7 +68,8 @@ export class BookInstance implements BookSchemaType {
         secretSlug: this.secretSlug,
         giveawayId: this.giveawayId,
         pages: this.pages,
-        isPublished: this.isPublished
+        isPublished: this.isPublished,
+        isPictureBook: this.isPictureBook
       });
     }
     return this;

@@ -149,17 +149,43 @@
   animation: cutePulse 2s infinite ease-in-out;
 }
 
-/* Page Flip Transition animations resembling real comic book page turns */
+/* Page Flip Transition animations resembling real comic book page turns with subtle physical book page-curl and skew */
 @keyframes pageTurnLeft {
-  0% { transform: perspective(1500px) rotateY(0deg); }
-  50% { transform: perspective(1500px) rotateY(-20deg) scale(0.98); }
-  100% { transform: perspective(1500px) rotateY(0deg); }
+  0% { 
+    transform: perspective(1500px) rotateY(0deg) skewY(0deg); 
+    box-shadow: 0 0 0 rgba(0,0,0,0);
+  }
+  35% { 
+    transform: perspective(1500px) rotateY(-30deg) skewY(-3deg) scale(0.97); 
+    box-shadow: -15px 15px 30px rgba(0,0,0,0.25);
+  }
+  70% {
+    transform: perspective(1500px) rotateY(-15deg) skewY(-1deg) scale(0.99);
+    box-shadow: -5px 5px 15px rgba(0,0,0,0.1);
+  }
+  100% { 
+    transform: perspective(1500px) rotateY(0deg) skewY(0deg); 
+    box-shadow: 0 0 0 rgba(0,0,0,0);
+  }
 }
 
 @keyframes pageTurnRight {
-  0% { transform: perspective(1500px) rotateY(0deg); }
-  50% { transform: perspective(1500px) rotateY(20deg) scale(0.98); }
-  100% { transform: perspective(1500px) rotateY(0deg); }
+  0% { 
+    transform: perspective(1500px) rotateY(0deg) skewY(0deg); 
+    box-shadow: 0 0 0 rgba(0,0,0,0);
+  }
+  35% { 
+    transform: perspective(1500px) rotateY(30deg) skewY(3deg) scale(0.97); 
+    box-shadow: 15px 15px 30px rgba(0,0,0,0.25);
+  }
+  70% {
+    transform: perspective(1500px) rotateY(15deg) skewY(1deg) scale(0.99);
+    box-shadow: 5px 5px 15px rgba(0,0,0,0.1);
+  }
+  100% { 
+    transform: perspective(1500px) rotateY(0deg) skewY(0deg); 
+    box-shadow: 0 0 0 rgba(0,0,0,0);
+  }
 }
 
 .page-sheet-turn-left {
@@ -168,4 +194,172 @@
 
 .page-sheet-turn-right {
   animation: pageTurnRight 0.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+/* Page curl creasing highlights on page-sheets */
+.page-sheet-turn-left .page-sheet, .page-sheet-turn-right .page-sheet {
+  position: relative;
+}
+.page-sheet-turn-left .page-sheet::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 50px;
+  height: 100%;
+  background: linear-gradient(to left, rgba(0,0,0,0) 0%, rgba(0,0,0,0.12) 75%, rgba(255,255,255,0.2) 100%);
+  pointer-events: none;
+  animation: pageCurlHighlight 0.5s ease-in-out forwards;
+  z-index: 10;
+}
+.page-sheet-turn-right .page-sheet::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50px;
+  height: 100%;
+  background: linear-gradient(to right, rgba(0,0,0,0) 0%, rgba(0,0,0,0.12) 75%, rgba(255,255,255,0.2) 100%);
+  pointer-events: none;
+  animation: pageCurlHighlight 0.5s ease-in-out forwards;
+  z-index: 10;
+}
+
+@keyframes pageCurlHighlight {
+  0% { opacity: 0; transform: scaleX(0.2); }
+  45% { opacity: 1; transform: scaleX(1); }
+  100% { opacity: 0; transform: scaleX(0.2); }
+}
+
+/* Confetti falling animation */
+@keyframes confettiFall {
+  0% { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; }
+  100% { transform: translateY(-220px) rotate(540deg) scale(0.4); opacity: 0; }
+}
+.animate-confetti {
+  animation: confettiFall 2.2s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+}
+
+/* Badge pop-up animation */
+@keyframes badgePop {
+  0% { transform: translate(-50%, 20px) scale(0); opacity: 0; }
+  50% { transform: translate(-50%, -15px) scale(1.15) rotate(-3deg); opacity: 1; }
+  100% { transform: translate(-50%, 0) scale(1) rotate(-1.5deg); opacity: 1; }
+}
+.animate-badge-pop {
+  animation: badgePop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+
+/* Website self-building/assembling animations */
+@keyframes assembleHeader {
+  0% { transform: translateY(-150px); opacity: 0; }
+  60% { transform: translateY(10px); opacity: 1; }
+  80% { transform: translateY(-5px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes assembleHero {
+  0% { transform: scale(0.3) rotate(-15deg) translateY(100px); opacity: 0; }
+  70% { transform: scale(1.05) rotate(1deg) translateY(-10px); opacity: 1; }
+  85% { transform: scale(0.98) rotate(-1deg); }
+  100% { transform: scale(1) rotate(-0.5deg); }
+}
+
+@keyframes assembleSplat {
+  0% { transform: scale(0) rotate(-45deg); opacity: 0; }
+  75% { transform: scale(1.3) rotate(15deg); opacity: 1; }
+  100% { transform: scale(1) rotate(var(--splat-rot, -6deg)); }
+}
+
+@keyframes assembleTitle {
+  0% { transform: translateX(-100px); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes assembleBookCard {
+  0% { transform: translateY(-300px) scale(0.5) rotate(15deg); opacity: 0; }
+  60% { transform: translateY(30px) scale(1.05) rotate(-5deg); opacity: 1; }
+  80% { transform: translateY(-15px) rotate(2deg); }
+  100% { transform: translateY(0) scale(1) rotate(var(--card-rot, 0deg)); }
+}
+
+.animate-assemble-header {
+  animation: assembleHeader 1s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+
+.animate-assemble-hero {
+  animation: assembleHero 1.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+  animation-delay: 0.2s;
+}
+
+.animate-assemble-splat-1 {
+  animation: assembleSplat 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.5) both;
+  animation-delay: 0.8s;
+  --splat-rot: -6deg;
+}
+.animate-assemble-splat-2 {
+  animation: assembleSplat 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.5) both;
+  animation-delay: 1s;
+  --splat-rot: 3deg;
+}
+.animate-assemble-splat-3 {
+  animation: assembleSplat 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.5) both;
+  animation-delay: 1.2s;
+  --splat-rot: -3deg;
+}
+
+.animate-assemble-title {
+  animation: assembleTitle 0.8s cubic-bezier(0.25, 1, 0.5, 1) both;
+  animation-delay: 0.5s;
+}
+
+.animate-assemble-card {
+  animation: assembleBookCard 1s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+
+/* Dedicated High Fidelity Web Print and PDF Layout */
+@media print {
+  body {
+    background-color: #ffffff !important;
+    background-image: none !important;
+    color: #000000 !important;
+  }
+  body * {
+    visibility: hidden !important;
+  }
+  #book-print-layout, #book-print-layout * {
+    visibility: visible !important;
+  }
+  #book-print-layout {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    display: block !important;
+  }
+  .print-page-break {
+    page-break-after: always !important;
+    break-after: page !important;
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 2cm !important;
+    box-sizing: border-box !important;
+  }
+}
+
+/* Premium particle confetti animation */
+@keyframes confettiParticleExplosion {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--target-x, 0px), var(--target-y, -400px), 0) rotate(var(--target-rotate, 360deg)) scale(0);
+    opacity: 0;
+  }
+}
+
+.animate-confetti-particle {
+  animation: confettiParticleExplosion 2.5s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
 }
