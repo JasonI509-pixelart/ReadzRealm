@@ -220,7 +220,7 @@ export default function App() {
 
   // Creative AI Generator fields for Admin Panel
   const [genTitle, setGenTitle] = useState<string>('');
-  const [genGenre, setGenGenre] = useState<string>('Wacky Adventure');
+  const [genGenre, setGenGenre] = useState<string>('Space Adventure');
   const [genAgeGroup, setGenAgeGroup] = useState<string>('8-12 years');
   const [genMoral, setGenMoral] = useState<string>('');
   const [genBlurb, setGenBlurb] = useState<string>('');
@@ -4289,7 +4289,7 @@ export default function App() {
                   playRetroSound('splat'); 
                   setStripeModalBook(null); 
                   setCurrentView('store');
-                  setStoreFilter('all');
+                  setStoreFilter('collection');
                 }}
                 className="w-full bg-neutral-200 hover:bg-neutral-300 text-black font-black border-4 border-black rounded-2xl py-3 text-xs uppercase shadow-[3px_3px_0_0_#000] active:translate-y-0.5 transition-all"
               >
