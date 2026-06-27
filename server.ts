@@ -1223,9 +1223,9 @@ Output matching JSON immediately.`;
     let generatedTitle = stripEmojis(title);
     let fullStoryText = "";
 
-    if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY") {
+    if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY" && !process.env.GEMINI_API_KEY.includes("dummy")) {
       try {
-        const response = await ai.models.generateContent({
+        const geminiCall = ai.models.generateContent({
           model: "gemini-3.5-flash",
           contents: promptPayload,
           config: {
@@ -1242,14 +1242,22 @@ Output matching JSON immediately.`;
           }
         });
 
-        const jsonStr = response.text?.trim() || "";
-        const parsed = JSON.parse(jsonStr);
-        if (parsed && parsed.fullStoryText) {
-          fullStoryText = parsed.fullStoryText;
-          generatedTitle = stripEmojis(parsed.generatedTitle || title);
+        const timeoutPromise = new Promise<null>((_, reject) => {
+          setTimeout(() => reject(new Error("Gemini API request timed out after 10 seconds")), 10000);
+        });
+
+        const response = await Promise.race([geminiCall, timeoutPromise]);
+
+        if (response) {
+          const jsonStr = response.text?.trim() || "";
+          const parsed = JSON.parse(jsonStr);
+          if (parsed && parsed.fullStoryText) {
+            fullStoryText = parsed.fullStoryText;
+            generatedTitle = stripEmojis(parsed.generatedTitle || title);
+          }
         }
       } catch (geminiError) {
-        console.log("ℹ️ Gemini API is currently offline or busy. Activating high-style comic story fallback engines!");
+        console.log("ℹ️ Gemini API is currently offline, busy, or timed out. Activating high-style comic story fallback engines!");
       }
     }
 

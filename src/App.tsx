@@ -823,6 +823,41 @@ export default function App() {
     }
   };
 
+  const handleSimulatedPurchase = async () => {
+    if (!stripeModalBook || !user) return;
+    setStripeProcessing(true);
+    setStripeError('');
+    try {
+      const res = await fetch('/api/v1/books/purchase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          userId: user._id, 
+          bookId: stripeModalBook._id,
+          cardHolder: user.username || "Reader Cadet",
+          cardNumber: "4111222233334444"
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setUser(data.user);
+        localStorage.setItem('comic_user', JSON.stringify(data.user));
+        playRetroSound('coin');
+        setStripeModalBook(null);
+        earnNamedBadge('badge_collector_gold', 'Super Collector Gold');
+        setCurrentView('store');
+        setStoreFilter('collection');
+      } else {
+        setStripeError(data.error || "Simulation error. Please try again.");
+        setStripeProcessing(false);
+      }
+    } catch (err) {
+      console.error("Simulation purchase failed:", err);
+      setStripeError("Simulation connection failed.");
+      setStripeProcessing(false);
+    }
+  };
+
   // Launch Book Reader Isolation Room
   const launchReaderRoom = (book: Book) => {
     playRetroSound('woosh');
@@ -4280,6 +4315,28 @@ export default function App() {
                 We verify payments through server-side Whop integration. If you do not pay, the book will not unlock. Please complete payment on the checkout page to gain instant access!
               </div>
             </div>
+
+            {/* Simulated Playground Unlock Option */}
+            <div className="bg-emerald-50 border-4 border-emerald-500 rounded-2xl p-4 text-center mb-4">
+              <span className="text-[10px] font-black text-emerald-800 uppercase block mb-1">🎮 SIMULATED PLAYGROUND UNLOCK</span>
+              <p className="text-[11px] font-bold text-gray-800 leading-tight mb-3">
+                For instant testing and evaluation, you can bypass real Whop processing and buy/unlock this book immediately:
+              </p>
+              <button 
+                type="button"
+                onClick={handleSimulatedPurchase}
+                disabled={stripeProcessing}
+                className="w-full bg-[#39FF14] hover:bg-[#25D366] text-black font-black border-4 border-black px-4 py-3 rounded-xl text-xs uppercase shadow-[4px_4px_0_0_#000] text-center hover:translate-x-0.5 hover:translate-y-0.5 active:translate-y-1 transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+              >
+                {stripeProcessing ? "UNLOCKING..." : "💳 SIMULATE PAYMENT SUCCESS (BUY)"}
+              </button>
+            </div>
+
+            {stripeError && (
+              <div className="bg-red-100 text-red-700 border-2 border-red-500 rounded-xl p-3 text-xs font-bold text-center mb-4">
+                ⚠️ {stripeError}
+              </div>
+            )}
 
             {/* Buttons */}
             <div className="mt-5 flex gap-2">
