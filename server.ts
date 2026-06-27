@@ -1047,7 +1047,7 @@ function generateFallbackContinuousStory(title: string, genre: string, moral: st
 
   while (currentWords < targetWordCount) {
     const baseParagraph = paragraphs[counter % paragraphs.length];
-    const variation = ` [Saga Chapter ${Math.floor(counter / paragraphs.length) + 1}, Episode ${counter + 1}]: Furthermore, during this phase of the grand saga, the adventurers encountered more wonders of ${cleanGenre}. They learned that every single obstacle could be overcome when keeping their core promise: "${cleanMoral}". They navigated through sparkling rivers of orange juice and climbed tall chocolate hills, singing happy songs that echoed through the canyons. Each step they took was filled with magical energy and laughter. `;
+    const variation = ` [Chapter ${counter + 1}]: Furthermore, during this phase of the grand adventure, the heroes encountered more wonders of ${cleanGenre}. They learned that every single obstacle could be overcome when keeping their core promise: "${cleanMoral}". They navigated through sparkling rivers of orange juice and climbed tall chocolate hills, singing happy songs that echoed through the canyons. Each step they took was filled with magical energy and laughter. `;
     const paragraphWithVariation = baseParagraph + variation;
     story += paragraphWithVariation;
     currentWords = story.split(/\s+/).filter(Boolean).length;
@@ -1136,9 +1136,7 @@ function enrichStoryPages(pages: any[], title: string, genre: string, moral: str
   return pages.map((p, idx) => ({
     pageNumber: idx + 1,
     textContent: stripEmojis(p.textContent || ""),
-    imageUrl: isPictureBook 
-      ? (p.imageUrl || getDynamicKeywordImageUrl(title, p.textContent || "", genre, idx + 1))
-      : ""
+    imageUrl: "" // For picture books, the pages do not have images initially, as requested.
   }));
 }
 
@@ -1315,7 +1313,7 @@ Output matching JSON immediately.`;
       ];
       while (currentWords < targetWords) {
         const baseParagraph = paragraphs[counter % paragraphs.length];
-        const variation = ` [Saga Chapter ${Math.floor(counter / paragraphs.length) + 1}, Episode ${counter + 1}]: Furthermore, during this phase of the grand saga, the adventurers encountered more wonders of ${stripEmojis(genre)}. They learned that every single obstacle could be overcome when keeping their core promise: "${stripEmojis(moral)}". They navigated through sparkling rivers of orange juice and climbed tall chocolate hills, singing happy songs that echoed through the canyons. Each step they took was filled with magical energy and laughter. `;
+        const variation = ` [Chapter ${counter + 1}]: Furthermore, during this phase of the grand adventure, the heroes encountered more wonders of ${stripEmojis(genre)}. They learned that every single obstacle could be overcome when keeping their core promise: "${stripEmojis(moral)}". They navigated through sparkling rivers of orange juice and climbed tall chocolate hills, singing happy songs that echoed through the canyons. Each step they took was filled with magical energy and laughter. `;
         fullStoryText += " " + baseParagraph + variation;
         currentWords = fullStoryText.split(/\s+/).filter(Boolean).length;
         counter++;
@@ -1346,7 +1344,7 @@ Output matching JSON immediately.`;
       secretSlug: generatedSecretSlug,
       giveawayId: generatedGiveawayId,
       pages: enrichedPagesList,
-      isPublished: req.body.isPublished !== undefined ? Boolean(req.body.isPublished) : true, // PUBLISH IMMEDIATELY BY DEFAULT so it shows up in store just how it was before!
+      isPublished: req.body.isPublished !== undefined ? Boolean(req.body.isPublished) : false, // Un-published by default as requested!
       isPictureBook: isPictureBook !== undefined ? Boolean(isPictureBook) : true
     });
 

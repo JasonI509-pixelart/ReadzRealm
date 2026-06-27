@@ -303,6 +303,45 @@ export default function App() {
   // Page flip transition state
   const [isFlipping, setIsFlipping] = useState<boolean>(false);
   const [flipDirection, setFlipDirection] = useState<'left' | 'right'>('left');
+
+  // AI Page Image placement states for picture books
+  const [aiPlacingPageNumber, setAiPlacingPageNumber] = useState<number | null>(null);
+  const [aiPlacementCountdown, setAiPlacementCountdown] = useState<number>(5);
+
+  const handleAiFindPlacement = (pIdx: number, pageNum: number, text: string) => {
+    if (aiPlacingPageNumber !== null) return;
+    
+    playRetroSound('whizz');
+    setAiPlacingPageNumber(pageNum);
+    setAiPlacementCountdown(5);
+
+    let currentSec = 5;
+    const interval = setInterval(() => {
+      currentSec -= 1;
+      setAiPlacementCountdown(currentSec);
+      if (currentSec <= 0) {
+        clearInterval(interval);
+        
+        // Find a nice cartoon style image based on words in textContent or genre
+        const cleanText = text ? text.trim().substring(0, 40) : "cute characters";
+        const words = cleanText.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 3);
+        const keyword = words.slice(0, 3).join(",") || "cartoon,illustration";
+        const generatedImgUrl = `https://loremflickr.com/600/600/cartoon,drawing,${encodeURIComponent(keyword)}?lock=${Math.floor(Math.random() * 1000)}`;
+        
+        // Update editFormPages
+        setEditFormPages(prevPages => {
+          const updated = [...prevPages];
+          if (updated[pIdx]) {
+            updated[pIdx] = { ...updated[pIdx], imageUrl: generatedImgUrl };
+          }
+          return updated;
+        });
+        
+        setAiPlacingPageNumber(null);
+        playRetroSound('sparkle');
+      }
+    }, 1000);
+  };
   
   // Confetti and Leveling Visual effect states
   const [confettiBurstActive, setConfettiBurstActive] = useState<boolean>(false);
@@ -855,16 +894,9 @@ export default function App() {
       console.error("Failed to set pending book on backend:", e);
     }
 
-    const whopUrl = getDynamicWhopLink();
-    try {
-      window.open(whopUrl, '_blank');
-    } catch (e) {
-      console.error("Popup blocked:", e);
-    }
-
     // Launch Whop Automated watchdog verification modal
     setStripeError('');
-    setStripeProcessing(true);
+    setStripeProcessing(false);
     setStripeModalBook(book);
     playRetroSound('coin');
   };
@@ -936,6 +968,15 @@ export default function App() {
 
   const handleSimulatedPurchase = async () => {
     if (!stripeModalBook || !user) return;
+    
+    // Bring user to the secure payment process link (Whop portal) as requested
+    const whopUrl = getDynamicWhopLink();
+    try {
+      window.open(whopUrl, '_blank');
+    } catch (e) {
+      console.error("Popup blocked:", e);
+    }
+
     setStripeProcessing(true);
     setStripeError('');
     try {
@@ -973,11 +1014,27 @@ export default function App() {
   const launchReaderRoom = (book: Book) => {
     playRetroSound('woosh');
     setReadingBook(book);
-    setCurrentSpreadIndex(0);
+    
+    // Find bookmark/history progress to resume from correct chapter/page
+    let startSpread = 0;
+    if (user && user.readingHistory) {
+      const historyItem = user.readingHistory.find(h => h.bookId === book._id);
+      if (historyItem && historyItem.lastPage > 0) {
+        // Map 1-indexed page number to spread index
+        const calculatedSpread = Math.floor((historyItem.lastPage - 1) / 2) + 1;
+        const maxSpreads = 1 + Math.ceil(book.pages.length / 2);
+        if (calculatedSpread < maxSpreads) {
+          startSpread = calculatedSpread;
+        }
+      }
+    }
+
+    setCurrentSpreadIndex(startSpread);
     setCurrentView('reader');
     if (user) {
       trackActivityInClient('read', book._id);
-      trackActivityInClient('page_read', book._id, 1);
+      const initialPageNum = startSpread === 0 ? 1 : Math.min(book.pages.length, (startSpread - 1) * 2 + 1);
+      trackActivityInClient('page_read', book._id, initialPageNum);
     }
   };
 
@@ -3007,15 +3064,16 @@ export default function App() {
                   />
                 </div>
 
-                {/* Num pages */}
+                {/* Num chapters */}
                 <div>
-                  <label className="block text-md font-black uppercase mb-1">Page Count Specs</label>
+                  <label className="block text-md font-black uppercase mb-1">Book Chapters Count (Number of Chapters)</label>
                   <input
                     type="number"
                     min="1"
                     value={genPageCount}
                     onChange={(e) => setGenPageCount(Number(e.target.value))}
                     className="w-full bg-white border-4 border-black p-3 font-bold"
+                    placeholder="Enter how many chapters you want in the book"
                   />
                 </div>
 
@@ -3282,18 +3340,18 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* INTERACTIVE PAGE-BY-PAGE WORD EDITOR */}
+                    {/* INTERACTIVE CHAPTER-BY-CHAPTER WORD EDITOR */}
                     <div className="border-t-2 border-black pt-4">
                       <div className="flex justify-between items-center mb-3">
                         <h5 className="text-lg font-black uppercase">
-                          📖 SCAN & MODIFY LIVE PAGES TEXT {editFormIsPictureBook ? "(PICTURE BOOK MODE)" : "(STANDARD TEXT BOOK MODE)"}:
+                          📖 SCAN & MODIFY LIVE CHAPTERS TEXT {editFormIsPictureBook ? "(PICTURE BOOK MODE)" : "(STANDARD TEXT BOOK MODE)"}:
                         </h5>
                         <button
                           type="button"
                           onClick={handleAddPage}
                           className="bg-[#39FF14] text-black hover:bg-green-400 border-2 border-black font-black text-xs px-3 py-1 uppercase flex items-center gap-1 shadow-[2px_2px_0_0_#000]"
                         >
-                          ➕ Add New Page
+                          ➕ Add New Chapter
                         </button>
                       </div>
                       
@@ -3301,8 +3359,13 @@ export default function App() {
                         {editFormPages.map((page, pIdx) => (
                           <div key={pIdx} className="bg-white border-2 border-black p-3 flex gap-4 items-start relative group">
                             {editFormIsPictureBook && (
-                              <div className="w-16 h-16 border-2 border-black flex-shrink-0 bg-gray-100 overflow-hidden flex items-center justify-center">
-                                {page.imageUrl ? (
+                              <div className="w-16 h-16 border-2 border-black flex-shrink-0 bg-gray-100 overflow-hidden flex items-center justify-center relative">
+                                {aiPlacingPageNumber === page.pageNumber ? (
+                                  <div className="absolute inset-0 bg-purple-900 flex flex-col items-center justify-center text-white">
+                                    <span className="animate-spin text-xs">🌀</span>
+                                    <span className="text-[9px] font-black mt-1">{aiPlacementCountdown}s</span>
+                                  </div>
+                                ) : page.imageUrl ? (
                                   <img src={page.imageUrl} alt="" className="w-full h-full object-cover" />
                                 ) : (
                                   <FileImage className="w-8 h-8 text-gray-400" />
@@ -3312,14 +3375,14 @@ export default function App() {
                             <div className="flex-1">
                               <div className="flex justify-between items-center mb-1">
                                 <span className="text-xs font-black text-magenta-800 uppercase">
-                                  PAGE {page.pageNumber} ILLUSTRATION SCENE WORDS:
+                                  CHAPTER {page.pageNumber} ILLUSTRATION SCENE WORDS:
                                 </span>
                                 <button
                                   type="button"
                                   onClick={() => handleDeletePage(pIdx)}
                                   className="bg-red-500 text-white font-black text-[10px] px-2 py-0.5 border-2 border-black uppercase hover:bg-red-600 shadow-[1px_1px_0_0_#000]"
                                 >
-                                  🗑️ Delete Page
+                                  🗑️ Delete Chapter
                                 </button>
                               </div>
                               <textarea
@@ -3330,9 +3393,27 @@ export default function App() {
                                 placeholder="Edit actual narration/speech bubble text..."
                               ></textarea>
                               {editFormIsPictureBook ? (
-                                <div className="mt-2">
+                                <div className="mt-2 space-y-2">
+                                  {/* AI PLACEMENT OPTION */}
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      disabled={aiPlacingPageNumber !== null}
+                                      onClick={() => handleAiFindPlacement(pIdx, page.pageNumber, page.textContent)}
+                                      className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-black text-xs py-2 px-3 border-2 border-black rounded-xl uppercase tracking-wider shadow-[2px_2px_0_0_#000] active:translate-y-0.5 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                                    >
+                                      {aiPlacingPageNumber === page.pageNumber ? (
+                                        <span className="flex items-center gap-1.5 animate-pulse text-yellow-300">
+                                          ⏳ AI FINDING BEST PLACE FOR IMAGE ({aiPlacementCountdown}s)...
+                                        </span>
+                                      ) : (
+                                        <span>🤖 LET AI FIND BEST PLACE FOR IMAGE (5s)</span>
+                                      )}
+                                    </button>
+                                  </div>
+
                                   <label className="block text-[10px] font-black text-blue-800 uppercase mb-0.5">
-                                    Page {page.pageNumber} Illustration Artwork (Custom Upload):
+                                    OR Chapter {page.pageNumber} Illustration Artwork (Custom Upload):
                                   </label>
                                   <div 
                                     className="border-2 border-dashed border-black rounded-xl p-3 bg-neutral-50 hover:bg-yellow-100/20 transition-colors cursor-pointer text-center relative flex flex-col items-center justify-center min-h-[90px]"
@@ -3394,7 +3475,7 @@ export default function App() {
                                 </div>
                               ) : (
                                 <div className="mt-1 text-[10px] font-bold text-neutral-500 italic">
-                                  ℹ️ Standard page: Cover image will be the only illustration. No page artwork required.
+                                  ℹ️ Standard chapter: Cover image will be the only illustration. No chapter artwork required.
                                 </div>
                               )}
                             </div>
@@ -3408,7 +3489,7 @@ export default function App() {
                           onClick={handleAddPage}
                           className="bg-[#39FF14] text-black hover:bg-green-400 border-2 border-black font-black text-xs px-4 py-2 uppercase flex items-center gap-1 shadow-[3px_3px_0_0_#000]"
                         >
-                          ➕ ADD NEW PAGE AT THE END
+                          ➕ ADD NEW CHAPTER AT THE END
                         </button>
                       </div>
                     </div>
@@ -3950,7 +4031,7 @@ export default function App() {
                     </span>
                   </div>
                   <span className="absolute right-4 text-[9px] font-black text-black uppercase tracking-wider">
-                    ⚡ PAGE STORY PROGRESS ({currentSpreadIndex + 1} / {maxSpreads} SPREADS)
+                    ⚡ CHAPTER STORY PROGRESS ({currentSpreadIndex + 1} / {maxSpreads} SPREADS)
                   </span>
                 </div>
               );
@@ -4043,11 +4124,11 @@ export default function App() {
                             <div className="w-full h-44 md:h-64 border-4 border-black overflow-hidden relative bg-cyan-50 flex items-center justify-center mb-2">
                               <img 
                                 src={leftPage.imageUrl} 
-                                alt={`Illustration for page ${leftPage.pageNumber}`} 
+                                alt={`Illustration for chapter ${leftPage.pageNumber}`} 
                                 className="w-full h-full object-cover"
                               />
                               <div className="absolute top-2 left-2 bg-yellow-300 border-2 border-black text-xs font-black px-2 uppercase">
-                                PAGE {leftPage.pageNumber}
+                                CHAPTER {leftPage.pageNumber}
                               </div>
                             </div>
                           ) : null}
@@ -4064,7 +4145,7 @@ export default function App() {
                           </div>
 
                           <div className="flex items-center justify-between mt-3 border-t-2 border-dashed border-gray-300 pt-2 text-xs font-black text-black select-none">
-                            <span>📖 PAGE {leftPage.pageNumber} / {readingBook.pages.length}</span>
+                            <span>📖 CHAPTER {leftPage.pageNumber} / {readingBook.pages.length}</span>
                             {leftPage.imageUrl && (
                               <span className="bg-red-500 text-white border-2 border-black px-2 py-0.5 text-[10px] uppercase">
                                 {leftPage.pageNumber % 2 === 0 ? "SPLAT! 💥" : "KABOOM! ⚡"}
@@ -4077,7 +4158,7 @@ export default function App() {
                         <div className="h-full flex flex-col items-center justify-center bg-gray-50 border-2 border-dashed border-gray-400 p-8">
                           <BookOpen className="w-12 h-12 text-gray-400 mb-2" />
                           <h4 className="text-lg font-black text-gray-500">START OF SPREAD</h4>
-                          <p className="text-xs font-bold text-center text-gray-400">This page left intentionally blank as standard physical layouts!</p>
+                          <p className="text-xs font-bold text-center text-gray-400">This chapter left intentionally blank as standard physical layouts!</p>
                         </div>
                       )}
                     </div>
@@ -4141,11 +4222,11 @@ export default function App() {
                             <div className="w-full h-44 md:h-64 border-4 border-black overflow-hidden relative bg-magenta-50 flex items-center justify-center mb-2">
                               <img 
                                 src={rightPage.imageUrl} 
-                                alt={`Illustration for page ${rightPage.pageNumber}`} 
+                                alt={`Illustration for chapter ${rightPage.pageNumber}`} 
                                 className="w-full h-full object-cover"
                               />
                               <div className="absolute top-2 left-2 bg-yellow-300 border-2 border-black text-xs font-black px-2 uppercase">
-                                PAGE {rightPage.pageNumber}
+                                CHAPTER {rightPage.pageNumber}
                               </div>
                             </div>
                           ) : null}
@@ -4162,7 +4243,7 @@ export default function App() {
                           </div>
 
                           <div className="flex items-center justify-between mt-3 border-t-2 border-dashed border-gray-300 pt-2 text-xs font-black text-black select-none">
-                            <span>📖 PAGE {rightPage.pageNumber} / {readingBook.pages.length}</span>
+                            <span>📖 CHAPTER {rightPage.pageNumber} / {readingBook.pages.length}</span>
                             {rightPage.imageUrl && (
                               <span className="bg-[#39FF14] text-black border-2 border-black px-2 py-0.5 text-[10px] uppercase">
                                 {rightPage.pageNumber % 3 === 0 ? "SQUEAL! 🐷" : "WHOOSH! 🌪️"}
@@ -4569,12 +4650,10 @@ export default function App() {
                 onClick={() => { 
                   playRetroSound('splat'); 
                   setStripeModalBook(null); 
-                  setCurrentView('store');
-                  setStoreFilter('collection');
                 }}
                 className="w-full bg-neutral-200 hover:bg-neutral-300 text-black font-black border-4 border-black rounded-2xl py-3 text-xs uppercase shadow-[3px_3px_0_0_#000] active:translate-y-0.5 transition-all"
               >
-                BACK TO LIBRARY
+                CLOSE WINDOW
               </button>
             </div>
 
