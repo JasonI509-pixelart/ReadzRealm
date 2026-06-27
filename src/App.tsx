@@ -57,6 +57,17 @@ interface OwnedBookItem {
   unlockedVia: 'purchase' | 'giveaway';
 }
 
+interface ReadingHistoryItem {
+  bookId: string;
+  lastPage: number;
+  lastAccessed: string;
+}
+
+interface BookRatingItem {
+  bookId: string;
+  rating: number;
+}
+
 interface User {
   _id: string;
   username: string;
@@ -66,6 +77,9 @@ interface User {
   ownedBooks: OwnedBookItem[];
   bannedUntil?: string;
   banReason?: string;
+  readingHistory?: ReadingHistoryItem[];
+  totalReadingTime?: number;
+  bookRatings?: BookRatingItem[];
 }
 
 // Sound effects generator using standard browser Web Audio Synth
@@ -207,6 +221,8 @@ export default function App() {
   // Currently viewed book in Reader
   const [readingBook, setReadingBook] = useState<Book | null>(null);
   const [currentSpreadIndex, setCurrentSpreadIndex] = useState<number>(0);
+  const [sessionSeconds, setSessionSeconds] = useState<number>(0);
+  const [unsavedSeconds, setUnsavedSeconds] = useState<number>(0);
   const [claimStatus, setClaimStatus] = useState<{ success?: boolean; error?: string; message?: string }>({});
 
   // Auth Forms inputs
@@ -245,8 +261,8 @@ export default function App() {
   // Dynamic price map to fast query previews
   const [pricesPreviewMap, setPricesPreviewMap] = useState<Record<string, { basePrice: number; isFirstOrder: boolean; finalPrice: number }>>({});
 
-  // Store page sub-tab filter: 'all' or 'collection'
-  const [storeFilter, setStoreFilter] = useState<'all' | 'collection'>('all');
+  // Store page sub-tab filter: 'all', 'collection', or 'history'
+  const [storeFilter, setStoreFilter] = useState<'all' | 'collection' | 'history'>('all');
   const [selectedGenreTag, setSelectedGenreTag] = useState<string>('All');
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [genreSearchQuery, setGenreSearchQuery] = useState<string>('');
@@ -700,6 +716,101 @@ export default function App() {
       if (interval) clearInterval(interval);
     };
   }, [currentView, readingBook, user]);
+
+  // Save the user's reading history progress (last-accessed page)
+  const saveActivePageToProfile = async (bookId: string, pageNum: number) => {
+    if (!user) return;
+    try {
+      const updatedHistory = [...(user.readingHistory || [])];
+      const existingIdx = updatedHistory.findIndex(h => h.bookId === bookId);
+      if (existingIdx !== -1) {
+        if (updatedHistory[existingIdx].lastPage === pageNum) return; // avoid duplicated hits
+        updatedHistory[existingIdx].lastPage = pageNum;
+        updatedHistory[existingIdx].lastAccessed = new Date().toISOString();
+      } else {
+        updatedHistory.push({
+          bookId,
+          lastPage: pageNum,
+          lastAccessed: new Date().toISOString()
+        });
+      }
+      const updatedUser = { ...user, readingHistory: updatedHistory };
+      setUser(updatedUser);
+      localStorage.setItem('comic_user', JSON.stringify(updatedUser));
+
+      await fetch('/api/v1/user/track-activity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user._id,
+          type: 'save_page',
+          bookId,
+          lastPage: pageNum
+        })
+      });
+    } catch (err) {
+      console.error("Failed to save page read progress:", err);
+    }
+  };
+
+  // Save user total reading time spent
+  const saveReadingTime = async (secondsToReport: number) => {
+    if (!user || secondsToReport <= 0) return;
+    try {
+      const updatedUser = { ...user, totalReadingTime: (user.totalReadingTime || 0) + secondsToReport };
+      setUser(updatedUser);
+      localStorage.setItem('comic_user', JSON.stringify(updatedUser));
+
+      await fetch('/api/v1/user/track-activity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user._id,
+          type: 'save_time',
+          bookId: readingBook?._id || 'none',
+          seconds: secondsToReport
+        })
+      });
+    } catch (err) {
+      console.error("Error saving reading time:", err);
+    }
+  };
+
+  // Effect to automatically save active page progress when page is turned
+  useEffect(() => {
+    if (currentView === 'reader' && readingBook && user) {
+      const pageNum = currentSpreadIndex === 0 ? 1 : Math.min(readingBook.pages.length, currentSpreadIndex * 2);
+      saveActivePageToProfile(readingBook._id, pageNum);
+    }
+  }, [currentSpreadIndex, readingBook?._id, currentView]);
+
+  // Effect to manage active reading session timer and periodically persist
+  useEffect(() => {
+    if (currentView !== 'reader') {
+      if (unsavedSeconds > 0) {
+        saveReadingTime(unsavedSeconds);
+        setUnsavedSeconds(0);
+      }
+      setSessionSeconds(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setSessionSeconds(prev => prev + 1);
+      setUnsavedSeconds(prev => {
+        const next = prev + 1;
+        if (next >= 5) {
+          saveReadingTime(next);
+          return 0;
+        }
+        return next;
+      });
+    }, 1000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [currentView, unsavedSeconds, readingBook?._id, user?._id]);
 
   const getDynamicWhopLink = () => {
     if (!user) return "https://whop.com/checkout/plan_RqZyx8HYffDeb"; // Fallback to first book link
@@ -1171,8 +1282,9 @@ export default function App() {
       setGenBlurb('');
       setGenCoverUrl('');
 
-    } catch (err) {
-      setAdminGenError("Failed to trigger remote Express server generation action. Check network status!");
+    } catch (err: any) {
+      console.error("DEBUG: handleAiGenerationSubmit error:", err);
+      setAdminGenError("Error Generating Story: " + (err?.message || String(err)));
       playRetroSound('splat');
     } finally {
       setIsGenerating(false);
@@ -1833,7 +1945,7 @@ export default function App() {
             </div>
 
             {/* CUSTOM TABS FOR MY COLLECTION & ALL COMICS */}
-            <div className="flex border-4 border-black mb-8 p-1 bg-black rounded-2xl select-none animate-assemble-title" style={{ animationDelay: '0.4s' }}>
+            <div className="flex flex-col sm:flex-row border-4 border-black mb-8 p-1 bg-black rounded-2xl select-none animate-assemble-title" style={{ animationDelay: '0.4s' }}>
               <button
                 type="button"
                 onClick={() => { playRetroSound('woosh'); setStoreFilter('all'); }}
@@ -1855,6 +1967,17 @@ export default function App() {
                 }`}
               >
                 🗝️ MY PERSONAL COLLECTION ({user ? books.filter(b => isBookOwned(b._id)).length : 0} Owned)
+              </button>
+              <button
+                type="button"
+                onClick={() => { playRetroSound('woosh'); setStoreFilter('history'); }}
+                className={`flex-1 py-3 text-center font-black uppercase text-sm rounded-xl transition-all cursor-pointer ${
+                  storeFilter === 'history' 
+                    ? 'bg-[#00D4FF] text-black border-2 border-black shadow-[3px_3px_0_0_#FFF]' 
+                    : 'text-white hover:text-[#00D4FF]'
+                }`}
+              >
+                ⏳ MY READING HISTORY
               </button>
             </div>
 
@@ -2404,6 +2527,11 @@ export default function App() {
                   if (!isBookOwned(b._id)) return false;
                 }
 
+                if (storeFilter === 'history') {
+                  const hasHistory = user && user.readingHistory && user.readingHistory.some(h => h.bookId === b._id);
+                  if (!hasHistory) return false;
+                }
+
                 // If filter text search query is set, search by book title, blurb, or genre
                 if (filterSearchQuery.trim()) {
                   const query = filterSearchQuery.toLowerCase();
@@ -2454,6 +2582,16 @@ export default function App() {
                           className="mt-4 bg-[#FFE600] text-black font-black border-4 border-black px-6 py-2.5 uppercase text-xs"
                         >
                           🛒 EXPLORE BOOK STORE CAFE →
+                        </button>
+                      </div>
+                    ) : storeFilter === 'history' ? (
+                      <div>
+                        <p className="text-md font-bold text-gray-700">You haven't read any books yet! Start reading to log your adventure history.</p>
+                        <button
+                          onClick={() => { playRetroSound('woosh'); setStoreFilter('all'); }}
+                          className="mt-4 bg-[#FFE600] text-black font-black border-4 border-black px-6 py-2.5 uppercase text-xs"
+                        >
+                          📚 START READING AN ADVENTURE →
                         </button>
                       </div>
                     ) : (
@@ -2605,9 +2743,85 @@ export default function App() {
                           </h3>
 
                           {/* Moral Lesson tag */}
-                          <div className="bg-amber-50 border-2 border-black p-2.5 rounded-xl mb-4 text-left">
+                          <div className="bg-amber-50 border-2 border-black p-2.5 rounded-xl mb-3 text-left">
                             <span className="text-[10px] font-black text-amber-800 uppercase block leading-none mb-1">🌟 THE LESSON:</span>
                             <span className="text-xs font-bold text-gray-800 italic">"{book.moralLesson}"</span>
+                          </div>
+
+                          {/* Reading History Last-Accessed Info */}
+                          {(() => {
+                            const historyItem = user?.readingHistory?.find(h => h.bookId === book._id);
+                            if (!historyItem) return null;
+                            return (
+                              <div className="bg-cyan-50 border-2 border-black p-2.5 rounded-xl mb-3 text-left">
+                                <span className="text-[10px] font-black text-cyan-800 uppercase block leading-none mb-1">⏳ LAST READ PAGE:</span>
+                                <span className="text-xs font-bold text-gray-800 block">Page {historyItem.lastPage} of {book.pageCount || book.pages?.length || 1}</span>
+                                <span className="text-[9px] text-gray-400 block mt-0.5">{new Date(historyItem.lastAccessed).toLocaleString()}</span>
+                              </div>
+                            );
+                          })()}
+
+                          {/* 5-Star Rating System */}
+                          <div className="flex items-center gap-1.5 mb-3 justify-start">
+                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-wider">Your Rating:</span>
+                            <div className="flex items-center">
+                              {[1, 2, 3, 4, 5].map((star) => {
+                                const ratingItem = user?.bookRatings?.find(r => r.bookId === book._id);
+                                const currentRating = ratingItem ? ratingItem.rating : 0;
+                                const isFilled = star <= currentRating;
+                                return (
+                                  <button
+                                    key={star}
+                                    type="button"
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      if (!user) {
+                                        alert("Please log in to rate books!");
+                                        return;
+                                      }
+                                      playRetroSound('coin');
+                                      // Optimistically update local user state
+                                      const updatedRatings = [...(user.bookRatings || [])];
+                                      const idx = updatedRatings.findIndex(r => r.bookId === book._id);
+                                      if (idx !== -1) {
+                                        updatedRatings[idx].rating = star;
+                                      } else {
+                                        updatedRatings.push({ bookId: book._id, rating: star });
+                                      }
+                                      setUser({ ...user, bookRatings: updatedRatings });
+                                      
+                                      // Save to server
+                                      try {
+                                        await fetch('/api/v1/user/track-activity', {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({
+                                            userId: user._id,
+                                            type: 'rate_book',
+                                            bookId: book._id,
+                                            rating: star
+                                          })
+                                        });
+                                      } catch (err) {
+                                        console.error("Failed to save book rating:", err);
+                                      }
+                                    }}
+                                    className={`text-xl focus:outline-none transition-transform hover:scale-125 duration-100 ${
+                                      isFilled ? 'text-amber-400 hover:text-amber-500' : 'text-gray-300 hover:text-amber-300'
+                                    }`}
+                                    style={{ cursor: 'pointer' }}
+                                  >
+                                    ★
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {(() => {
+                              const ratingItem = user?.bookRatings?.find(r => r.bookId === book._id);
+                              return ratingItem ? (
+                                <span className="text-[10px] font-black text-amber-500">({ratingItem.rating}/5)</span>
+                              ) : null;
+                            })()}
                           </div>
 
                           {/* Description text */}
@@ -3542,13 +3756,23 @@ export default function App() {
           
           {/* isolated top actions bar */}
           <div className="max-w-7xl mx-auto w-full flex flex-col lg:flex-row items-center justify-between border-b-4 border-black pb-4 mb-4 gap-4 select-none">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <span className="bg-[#FFE600] border-2 border-black px-3 py-1 font-black text-xs md:text-sm uppercase rotate-[-2deg]">
                 📖 NOW READING PHYSICAL ROOM
               </span>
               <h2 className="text-xl md:text-2xl font-black text-black leading-none drop-shadow-sm line-clamp-1 uppercase tracking-tight">
                 {readingBook.title}
               </h2>
+              {/* Reading Session Timer and Profile Total Time tracker */}
+              <div className="bg-neutral-900 text-white border-2 border-black rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 text-[11px] font-black uppercase shadow-[2px_2px_0_0_#000]">
+                <span className="text-[#39FF14] animate-pulse">●</span>
+                <span>TIMER: {Math.floor(sessionSeconds / 60).toString().padStart(2, '0')}:{(sessionSeconds % 60).toString().padStart(2, '0')}</span>
+                {user && (
+                  <span className="text-gray-400 border-l border-neutral-700 pl-1.5 ml-1">
+                    TOTAL: {Math.floor((user.totalReadingTime || 0) / 60)}m {user.totalReadingTime ? user.totalReadingTime % 60 : 0}s
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* AI Text-To-Speech Synthesis Voice Dashboard (9 Distinct Whimsical Voices) */}

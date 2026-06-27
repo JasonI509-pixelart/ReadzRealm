@@ -19,6 +19,9 @@ export class UserInstance implements UserSchemaType {
   pagesReadHistory?: { date: string; count: number }[];
   level?: number;
   completedBookIdsForLevel?: string[];
+  readingHistory?: { bookId: string; lastPage: number; lastAccessed: string }[];
+  totalReadingTime?: number;
+  bookRatings?: { bookId: string; rating: number }[];
 
   constructor(fields: any) {
     this._id = fields._id || "";
@@ -39,6 +42,9 @@ export class UserInstance implements UserSchemaType {
     this.pagesReadHistory = fields.pagesReadHistory || [];
     this.level = fields.level ?? 1;
     this.completedBookIdsForLevel = fields.completedBookIdsForLevel || [];
+    this.readingHistory = fields.readingHistory || [];
+    this.totalReadingTime = fields.totalReadingTime ?? 0;
+    this.bookRatings = fields.bookRatings || [];
   }
 
   async save(): Promise<UserInstance> {
@@ -60,7 +66,10 @@ export class UserInstance implements UserSchemaType {
         bookmarkedBookIds: this.bookmarkedBookIds,
         pagesReadHistory: this.pagesReadHistory,
         level: this.level,
-        completedBookIdsForLevel: this.completedBookIdsForLevel
+        completedBookIdsForLevel: this.completedBookIdsForLevel,
+        readingHistory: this.readingHistory,
+        totalReadingTime: this.totalReadingTime,
+        bookRatings: this.bookRatings
       });
       this._id = created._id;
     } else {
@@ -81,7 +90,10 @@ export class UserInstance implements UserSchemaType {
         bookmarkedBookIds: this.bookmarkedBookIds,
         pagesReadHistory: this.pagesReadHistory,
         level: this.level,
-        completedBookIdsForLevel: this.completedBookIdsForLevel
+        completedBookIdsForLevel: this.completedBookIdsForLevel,
+        readingHistory: this.readingHistory,
+        totalReadingTime: this.totalReadingTime,
+        bookRatings: this.bookRatings
       });
     }
     return this;

@@ -35,6 +35,9 @@ export interface UserSchemaType {
   pagesReadHistory?: { date: string; count: number }[];
   level?: number;
   completedBookIdsForLevel?: string[];
+  readingHistory?: { bookId: string; lastPage: number; lastAccessed: string }[];
+  totalReadingTime?: number; // total seconds spent reading
+  bookRatings?: { bookId: string; rating: number }[];
 }
 
 export interface BookPageType {

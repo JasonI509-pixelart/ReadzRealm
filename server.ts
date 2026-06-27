@@ -685,6 +685,36 @@ app.post("/api/v1/user/track-activity", async (req, res) => {
       }
     } else if (type === "delete_recent") {
       user.recentReadBookIds = user.recentReadBookIds.filter(id => id !== bookId);
+    } else if (type === "save_page") {
+      if (!user.readingHistory) user.readingHistory = [];
+      const lastPage = Number(req.body.lastPage) || 1;
+      const existingIndex = user.readingHistory.findIndex(h => h.bookId.toString() === bookId.toString());
+      if (existingIndex !== -1) {
+        user.readingHistory[existingIndex].lastPage = lastPage;
+        user.readingHistory[existingIndex].lastAccessed = new Date().toISOString();
+      } else {
+        user.readingHistory.push({
+          bookId: bookId.toString(),
+          lastPage,
+          lastAccessed: new Date().toISOString()
+        });
+      }
+      user.recentReadBookIds = [bookId, ...user.recentReadBookIds.filter(id => id !== bookId)];
+    } else if (type === "save_time") {
+      const seconds = Number(req.body.seconds) || 0;
+      user.totalReadingTime = (user.totalReadingTime || 0) + seconds;
+    } else if (type === "rate_book") {
+      if (!user.bookRatings) user.bookRatings = [];
+      const rating = Number(req.body.rating) || 5;
+      const existingIndex = user.bookRatings.findIndex(r => r.bookId.toString() === bookId.toString());
+      if (existingIndex !== -1) {
+        user.bookRatings[existingIndex].rating = rating;
+      } else {
+        user.bookRatings.push({
+          bookId: bookId.toString(),
+          rating
+        });
+      }
     } else {
       return res.status(400).json({ error: "Invalid tracking type." });
     }
@@ -1316,7 +1346,7 @@ Output matching JSON immediately.`;
       secretSlug: generatedSecretSlug,
       giveawayId: generatedGiveawayId,
       pages: enrichedPagesList,
-      isPublished: false, // ALWAYS UNPUBLISHED, DRAFT STATUS UNTIL SELECTED BY THE ADMIN!
+      isPublished: req.body.isPublished !== undefined ? Boolean(req.body.isPublished) : true, // PUBLISH IMMEDIATELY BY DEFAULT so it shows up in store just how it was before!
       isPictureBook: isPictureBook !== undefined ? Boolean(isPictureBook) : true
     });
 
