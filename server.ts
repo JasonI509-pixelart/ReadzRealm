@@ -1532,8 +1532,8 @@ app.get("/api/v1/detect-holiday", async (req, res) => {
           source: "gemini"
         });
       }
-    } catch (err) {
-      console.log("ℹ️ Gemini Holiday Detection failed or was rate limited, falling back to static detection.", err);
+    } catch (err: any) {
+      console.log("ℹ️ Gemini Holiday Detection failed or was rate limited, falling back to static detection:", err?.message || err);
     }
   }
 
