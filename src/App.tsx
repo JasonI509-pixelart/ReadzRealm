@@ -26,6 +26,7 @@ interface Page {
   pageNumber: number;
   textContent: string;
   imageUrl: string;
+  chapterTitle?: string;
 }
 
 interface Book {
@@ -419,9 +420,9 @@ export default function App() {
       .catch(err => console.error("Failed to load AI holiday data:", err));
   }, []);
 
-  // Polling watchdog to automatically detect Whop purchases
+  // Quiet background auto-refresh to automatically unlock newly purchased Whop items
   useEffect(() => {
-    if (!stripeModalBook || !user) return;
+    if (!user) return;
 
     let isCleared = false;
     const interval = setInterval(async () => {
@@ -430,30 +431,28 @@ export default function App() {
         if (uRes.ok) {
           const uData = await uRes.json();
           if (uData.success && uData.user) {
-            // Check if user has now purchased this book
-            const hasPurchased = uData.user.ownedBooks && uData.user.ownedBooks.some(
-              (ob: any) => ob.bookId.toString() === stripeModalBook._id.toString()
-            );
-            if (hasPurchased && !isCleared) {
+            const currentOwnedCount = user.ownedBooks ? user.ownedBooks.length : 0;
+            const newOwnedCount = uData.user.ownedBooks ? uData.user.ownedBooks.length : 0;
+            
+            if (newOwnedCount > currentOwnedCount && !isCleared) {
               isCleared = true;
               setUser(uData.user);
               localStorage.setItem('comic_user', JSON.stringify(uData.user));
               playRetroSound('sparkle');
               
-              // Redirect to personal collection owned page
+              // Automatically switch to collection to show newly unlocked book
               setCurrentView('store');
               setStoreFilter('collection');
-              setStripeModalBook(null);
             }
           }
         }
       } catch (err) {
-        console.error("Watchdog polling error:", err);
+        console.error("Profile refresh polling error:", err);
       }
-    }, 4000);
+    }, 8000);
 
     return () => clearInterval(interval);
-  }, [stripeModalBook, user]);
+  }, [user]);
 
   // Admin Edit Selected Book States
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
@@ -598,7 +597,7 @@ export default function App() {
 
   // Fetch AI Recommendations and Recents
   useEffect(() => {
-    if (!user) {
+    if (!user || !user._id) {
       setRecentBooks([]);
       setRecommendedBooks([]);
       return;
@@ -620,10 +619,17 @@ export default function App() {
         setIsRecommendationsLoading(true);
         const res = await fetch(`/api/v1/user/${user._id}/recommendations`);
         if (res.ok) {
-          const data = await res.json();
-          if (data.success && Array.isArray(data.recommendations)) {
-            setRecommendedBooks(data.recommendations);
+          const contentType = res.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const data = await res.json();
+            if (data.success && Array.isArray(data.recommendations)) {
+              setRecommendedBooks(data.recommendations);
+            }
+          } else {
+            console.warn("Recommendations response was not JSON: content-type header mismatch.");
           }
+        } else {
+          console.warn(`Failed to fetch recommendations. Status code: ${res.status}`);
         }
       } catch (err) {
         console.error("Error loading recommendations:", err);
@@ -894,120 +900,10 @@ export default function App() {
       console.error("Failed to set pending book on backend:", e);
     }
 
-    // Launch Whop Automated watchdog verification modal
-    setStripeError('');
-    setStripeProcessing(false);
-    setStripeModalBook(book);
+    // Launch Whop Automated purchase portal directly
+    const whopLink = getDynamicWhopLink();
     playRetroSound('coin');
-  };
-
-  const submitStripePayment = async () => {
-    if (!stripeModalBook || !user) return;
-    if (!stripeCardName.trim()) {
-      setStripeError("Please provide the Cardholder / Payer Name.");
-      return;
-    }
-    if (!stripeWatchdogTransactionId.trim()) {
-      setStripeError("Please enter your Stripe Transaction ID or Receipt Number.");
-      return;
-    }
-
-    setStripeProcessing(true);
-    setStripeError('');
-
-    try {
-      const res = await fetch('/api/v1/books/verify-watchdog', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          userId: user._id, 
-          bookId: stripeModalBook._id,
-          payerName: stripeCardName,
-          transactionId: stripeWatchdogTransactionId,
-          noteText: stripeWatchdogNote
-        })
-      });
-      const data = await res.json();
-      
-      if (!res.ok || !data.success) {
-        if (data.banned || data.scamDetected) {
-          // BAN ENFORCED!
-          const updatedUser = {
-            ...user,
-            bannedUntil: data.bannedUntil,
-            banReason: data.reason
-          };
-          setUser(updatedUser);
-          localStorage.setItem('comic_user', JSON.stringify(updatedUser));
-          setStripeModalBook(null);
-          playRetroSound('kaboom');
-          alert(`🚨 FRAUD DETECTED BY AI WATCHDOG!\n\nReason: ${data.reason || data.error}\n\nYour account has been BANNED for 3 days.`);
-          return;
-        }
-        setStripeError(data.error || "AI Watchdog rejected this transaction. Please ensure you entered valid transaction details.");
-        setStripeProcessing(false);
-        return;
-      }
-
-      // Success
-      setUser(data.user);
-      localStorage.setItem('comic_user', JSON.stringify(data.user));
-      playRetroSound('coin');
-      
-      // Close modal and redirect to personal collection owned page
-      setStripeModalBook(null);
-      earnNamedBadge('badge_collector_gold', 'Super Collector Gold');
-      setCurrentView('store');
-      setStoreFilter('collection');
-    } catch (err) {
-      console.error("Watchdog checkout verify exception:", err);
-      setStripeError("Error connecting to the AI Watchdog telemetry server. Please try again.");
-      setStripeProcessing(false);
-    }
-  };
-
-  const handleSimulatedPurchase = async () => {
-    if (!stripeModalBook || !user) return;
-    
-    // Bring user to the secure payment process link (Whop portal) as requested
-    const whopUrl = getDynamicWhopLink();
-    try {
-      window.open(whopUrl, '_blank');
-    } catch (e) {
-      console.error("Popup blocked:", e);
-    }
-
-    setStripeProcessing(true);
-    setStripeError('');
-    try {
-      const res = await fetch('/api/v1/books/purchase', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          userId: user._id, 
-          bookId: stripeModalBook._id,
-          cardHolder: user.username || "Reader Cadet",
-          cardNumber: "4111222233334444"
-        })
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setUser(data.user);
-        localStorage.setItem('comic_user', JSON.stringify(data.user));
-        playRetroSound('coin');
-        setStripeModalBook(null);
-        earnNamedBadge('badge_collector_gold', 'Super Collector Gold');
-        setCurrentView('store');
-        setStoreFilter('collection');
-      } else {
-        setStripeError(data.error || "Simulation error. Please try again.");
-        setStripeProcessing(false);
-      }
-    } catch (err) {
-      console.error("Simulation purchase failed:", err);
-      setStripeError("Simulation connection failed.");
-      setStripeProcessing(false);
-    }
+    window.open(whopLink, '_blank');
   };
 
   // Launch Book Reader Isolation Room
@@ -1299,6 +1195,16 @@ export default function App() {
     }
 
     try {
+      // Dynamically adjust vocabulary complexity based on chosen age group
+      let vocabInstruction = "";
+      if (genAgeGroup === "Teenagers") {
+        vocabInstruction = "ENFORCE the use of high-level, mature, descriptive synonyms instead of simple verbs and adjectives. Use sophisticated vocabulary (e.g., 'luminescent' instead of 'bright', 'accelerate' instead of 'run fast', 'formidable' instead of 'big/strong') to match the teenager age group's comprehension and reading maturity.";
+      } else if (genAgeGroup === "8-12 years") {
+        vocabInstruction = "Use rich, descriptive, engaging vocabulary that challenges but remains highly accessible to graphic novelists in the 8-12 age range.";
+      } else {
+        vocabInstruction = "Use simple, playful, and high-energy vocabulary suitable for young kids (ages 5-7), keeping sentence structures crisp and easily digestible.";
+      }
+
       const res = await fetch('/api/v1/admin/generate-book-content', {
         method: 'POST',
         headers: { 
@@ -1315,7 +1221,8 @@ export default function App() {
           wordCount: genWordCount,
           price: genPrice,
           coverImageUrl: genCoverUrl,
-          isPictureBook: genIsPictureBook
+          isPictureBook: genIsPictureBook,
+          vocabInstruction: vocabInstruction
         })
       });
       const data = await res.json();
@@ -2039,7 +1946,7 @@ export default function App() {
             </div>
 
             {/* RECENTS & RECOMMENDED SECTIONS (WHEN LOGGED IN) */}
-            {user && (
+            {user && storeFilter === 'history' && (
               <div className="space-y-8 mb-8">
                 
                 {/* 🌟 USER INTERACTIVE DASHBOARD PANEL */}
@@ -2259,8 +2166,8 @@ export default function App() {
 
                 </div>
 
-                {/* Inline Badges Museum section - shown when storeFilter === 'collection' */}
-                {storeFilter === 'collection' && (
+                {/* Inline Badges Museum section - shown when storeFilter === 'history' */}
+                {storeFilter === 'history' && (
                   <div className="bg-[#FFFEE5] border-[6px] border-black p-6 rounded-[2.5rem] shadow-[8px_8px_0_0_#000] select-none">
                     <div className="flex justify-between items-center mb-4">
                       <div>
@@ -2586,7 +2493,8 @@ export default function App() {
 
                 if (storeFilter === 'history') {
                   const hasHistory = user && user.readingHistory && user.readingHistory.some(h => h.bookId === b._id);
-                  if (!hasHistory) return false;
+                  const owned = isBookOwned(b._id);
+                  if (!hasHistory || !owned) return false;
                 }
 
                 // If filter text search query is set, search by book title, blurb, or genre
@@ -2909,27 +2817,15 @@ export default function App() {
                             ) : (
                               <button
                                 onClick={() => handlePurchaseComic(book)}
-                                className="border-[4px] border-black bg-[#39FF14] hover:bg-emerald-400 px-5 py-2.5 rounded-2xl font-black text-sm text-black uppercase shadow-[4px_4px_0px_0px_#000000] hover:scale-105 active:translate-y-0.5 transition-transform cursor-pointer flex flex-col items-center justify-center leading-none"
+                                className="border-[4px] border-black bg-[#39FF14] hover:bg-emerald-400 px-6 py-3 rounded-2xl font-black text-sm text-black uppercase shadow-[4px_4px_0px_0px_#000000] hover:scale-105 active:translate-y-0.5 transition-transform cursor-pointer flex flex-col items-center justify-center leading-none"
                               >
-                                <span className="text-[8px] opacity-95 font-black tracking-wide block">STRIPE CARD ORDER</span>
-                                <span className="font-black text-xs mt-1 block">💳 BUY FOR $4.00</span>
+                                <span className="font-black text-xs uppercase tracking-wide">💳 BUY FOR $4.00</span>
                               </button>
                             )}
                           </div>
                         </div>
 
-                        {/* Direct claim preview for quick admin claims */}
-                        <div className="mt-4 text-center">
-                          <button
-                            onClick={() => {
-                              setDirectPromoKey(book.giveawayId);
-                              processPromotionalClaim(book.giveawayId);
-                            }}
-                            className="text-[10px] font-black underline text-gray-400 hover:text-[#FF55BB]"
-                          >
-                            Click here to bypass using key ({book.giveawayId})
-                          </button>
-                        </div>
+
                       </div>
 
                     </div>
@@ -4561,109 +4457,7 @@ export default function App() {
         </div>
       )}
 
-      {/* SECURE WHOP CHECKOUT MODAL COMPONENT */}
-      {stripeModalBook && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 font-sans select-none animate-fade-in">
-          <div className="bg-white border-8 border-black rounded-3xl w-full max-w-md p-6 relative shadow-[8px_8px_0_0_rgba(0,0,0,1)] text-black">
-            
-            {/* Header */}
-            <div className="mb-4 text-center">
-              <span className="bg-emerald-600 text-white text-[10px] font-black uppercase px-3 py-1 rounded-full border-2 border-black inline-block select-none animate-bounce">
-                🛡️ AI WHOP PAYMENT WATCHDOG
-              </span>
-              <h3 className="text-2xl font-black uppercase tracking-tight text-black mt-2">
-                Secure Whop Checkout
-              </h3>
-              <p className="text-xs font-semibold text-gray-500 max-w-xs mx-auto mt-1">
-                You are purchasing direct reader lifetime keys for <span className="font-extrabold text-black italic">"{stripeModalBook.title}"</span>.
-              </p>
-            </div>
-
-            {/* AI Watchdog Live Telemetry Loader */}
-            <div className="bg-blue-50 border-4 border-black rounded-2xl p-4 text-center mb-4 flex flex-col items-center justify-center">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="relative flex h-3.5 w-3.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
-                </span>
-                <span className="text-[11px] font-black text-blue-900 uppercase tracking-widest animate-pulse">
-                  REAL-TIME AI WATCHDOG ACTIVE
-                </span>
-              </div>
-              <p className="text-[11px] font-bold text-gray-700 leading-tight">
-                Listening for secure payment verification signal from Whop servers... Once payment is finished, this window will automatically close and unlock your book!
-              </p>
-            </div>
-
-            {/* Whop payment link highlight */}
-            <div className="bg-yellow-50 border-4 border-black rounded-2xl p-4 text-center mb-4">
-              <span className="text-[10px] font-black text-amber-800 uppercase block mb-1">🔗 SECURE WHOP PAYMENT LINK</span>
-              <p className="text-xs font-bold text-gray-800 leading-tight mb-3">
-                Click below to complete the subscription or purchase on Whop's secure external billing portal:
-              </p>
-              <a 
-                href={getDynamicWhopLink()}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => playRetroSound('coin')}
-                className="inline-block bg-[#00E5FF] hover:bg-[#00B4D8] text-black font-black border-4 border-black px-4 py-3 rounded-xl text-xs uppercase shadow-[4px_4px_0_0_#000] w-full text-center hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
-              >
-                🚀 PAY WITH WHOP IN NEW WINDOW →
-              </a>
-            </div>
-
-            {/* Warning from AI Watchdog */}
-            <div className="bg-red-50 border-2 border-red-500 p-2.5 rounded-xl text-[10px] font-black text-red-700 mb-4 flex gap-2 items-center">
-              <span className="text-lg">🐕</span>
-              <div>
-                <span className="uppercase block font-black">AI Watchdog Status:</span>
-                We verify payments through server-side Whop integration. If you do not pay, the book will not unlock. Please complete payment on the checkout page to gain instant access!
-              </div>
-            </div>
-
-            {/* Simulated Playground Unlock Option */}
-            <div className="bg-emerald-50 border-4 border-emerald-500 rounded-2xl p-4 text-center mb-4">
-              <span className="text-[10px] font-black text-emerald-800 uppercase block mb-1">🎮 SIMULATED PLAYGROUND UNLOCK</span>
-              <p className="text-[11px] font-bold text-gray-800 leading-tight mb-3">
-                For instant testing and evaluation, you can bypass real Whop processing and buy/unlock this book immediately:
-              </p>
-              <button 
-                type="button"
-                onClick={handleSimulatedPurchase}
-                disabled={stripeProcessing}
-                className="w-full bg-[#39FF14] hover:bg-[#25D366] text-black font-black border-4 border-black px-4 py-3 rounded-xl text-xs uppercase shadow-[4px_4px_0_0_#000] text-center hover:translate-x-0.5 hover:translate-y-0.5 active:translate-y-1 transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
-              >
-                {stripeProcessing ? "UNLOCKING..." : "💳 SIMULATE PAYMENT SUCCESS (BUY)"}
-              </button>
-            </div>
-
-            {stripeError && (
-              <div className="bg-red-100 text-red-700 border-2 border-red-500 rounded-xl p-3 text-xs font-bold text-center mb-4">
-                ⚠️ {stripeError}
-              </div>
-            )}
-
-            {/* Buttons */}
-            <div className="mt-5 flex gap-2">
-              <button
-                type="button"
-                onClick={() => { 
-                  playRetroSound('splat'); 
-                  setStripeModalBook(null); 
-                }}
-                className="w-full bg-neutral-200 hover:bg-neutral-300 text-black font-black border-4 border-black rounded-2xl py-3 text-xs uppercase shadow-[3px_3px_0_0_#000] active:translate-y-0.5 transition-all"
-              >
-                CLOSE WINDOW
-              </button>
-            </div>
-
-            <div className="mt-4 text-[9px] font-semibold text-gray-400 text-center flex items-center justify-center gap-1 select-none">
-              🔒 Telemetry Guarded • Verified by Google AI Studio Whop Watchdog
-            </div>
-
-          </div>
-        </div>
-      )}
+      {/* SECURE WHOP CHECKOUT MODAL REMOVED */}
 
       {/* Dynamic Hidden Print Layout for 100% Crisp vector PDF books */}
       {readingBook && readingBook.pages && (

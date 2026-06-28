@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import crypto from "crypto";
+import nodemailer from "nodemailer";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import { DBStore } from "./src/models/dbStore";
@@ -15,8 +16,415 @@ const PORT = 3000;
 let isAutoGeneratingEveryMinute = false;
 
 // Body parsing
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({
+  limit: '50mb',
+  verify: (req: any, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+const WHOP_WEBHOOK_SECRET = process.env.WHOP_WEBHOOK_SECRET || "ws_bda6e9b72c89921c7dbe8db823ea700c42d54785fd51d4554af793644ebfff51";
+
+function verifyWhopSignature(req: any, secret: string): boolean {
+  const signature = req.headers['whop-signature'];
+  if (!signature) {
+    console.error("verifyWhopSignature: whop-signature header is missing in request");
+    return false;
+  }
+  
+  const bodyBuffer = req.rawBody || Buffer.from(JSON.stringify(req.body));
+  const hmac = crypto.createHmac('sha256', secret);
+  hmac.update(bodyBuffer);
+  const expectedSignature = hmac.digest('hex');
+  
+  try {
+    return crypto.timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expectedSignature, 'hex'));
+  } catch (e) {
+    return signature === expectedSignature;
+  }
+}
+
+// Automatically send digital edition to customer's email with attached printable digital book
+async function sendDigitalBookEmail(email: string, book: any) {
+  try {
+    const smtpHost = process.env.SMTP_HOST;
+    const smtpPort = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 587;
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+
+    let transporter: any;
+
+    if (smtpHost && smtpUser && smtpPass) {
+      console.log(`Using configured SMTP server ${smtpHost}:${smtpPort} for digital delivery...`);
+      transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass
+        }
+      });
+    } else {
+      console.log("No custom SMTP credentials configured in environments. Initializing fallback sandbox Ethereal transporter.");
+      try {
+        const testAccount = await nodemailer.createTestAccount();
+        transporter = nodemailer.createTransport({
+          host: "smtp.ethereal.email",
+          port: 587,
+          secure: false,
+          auth: {
+            user: testAccount.user,
+            pass: testAccount.pass
+          }
+        });
+      } catch (etherealErr) {
+        console.warn("Could not start Ethereal test mailer, falling back to dry-run mailer logging:", etherealErr);
+        transporter = {
+          sendMail: async (options: any) => {
+            console.log("================ SIMULATED DIGITAL BOOK EMAIL ================");
+            console.log(`To: ${options.to}`);
+            console.log(`Subject: ${options.subject}`);
+            console.log(`Body (Length): ${options.html?.length} characters`);
+            console.log(`Attachments: ${options.attachments?.map((a: any) => a.filename).join(", ")}`);
+            console.log("==============================================================");
+            return { messageId: "dryrun-id-" + Date.now() };
+          }
+        };
+      }
+    }
+
+    // Compile magnificent offline reader HTML document as printable/saveable Digital Edition
+    const offlineHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${book.title} - Official Collector's Digital Edition</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;700&display=swap');
+    
+    body {
+      background-color: #fcfcf9;
+      color: #121212;
+      font-family: 'Playfair Display', Georgia, serif;
+      line-height: 1.8;
+      max-width: 840px;
+      margin: 0 auto;
+      padding: 50px 30px;
+    }
+    
+    /* Cover page styling */
+    .book-cover {
+      text-align: center;
+      margin-bottom: 70px;
+      border: 8px solid #000;
+      padding: 50px 30px;
+      background: #ffffff;
+      border-radius: 36px;
+      box-shadow: 12px 12px 0 0 #000;
+      position: relative;
+    }
+    
+    .genre-tag {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #e53e3e;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 10px;
+    }
+    
+    h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 3rem;
+      font-weight: 700;
+      line-height: 1.2;
+      margin: 15px 0;
+      text-transform: uppercase;
+      letter-spacing: -1px;
+    }
+    
+    .moral-banner {
+      display: inline-block;
+      background: #FFFEE5;
+      border: 3px solid #000;
+      padding: 10px 24px;
+      border-radius: 16px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: bold;
+      font-size: 1.1rem;
+      margin: 20px 0;
+      box-shadow: 4px 4px 0 0 #000;
+    }
+    
+    .cover-illustration {
+      max-width: 100%;
+      height: auto;
+      border-radius: 20px;
+      border: 5px solid #000;
+      margin: 30px 0;
+      box-shadow: 6px 6px 0 0 #000;
+    }
+    
+    .blurb-text {
+      font-style: italic;
+      color: #333;
+      font-size: 1.25rem;
+      line-height: 1.6;
+      border-left: 6px solid #e53e3e;
+      padding-left: 20px;
+      margin: 40px auto;
+      text-align: left;
+      max-width: 90%;
+    }
+    
+    /* Toc styling */
+    .toc-container {
+      background: #fff;
+      border: 4px solid #000;
+      padding: 40px;
+      border-radius: 24px;
+      margin-bottom: 80px;
+      box-shadow: 8px 8px 0 0 #000;
+    }
+    
+    .toc-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.8rem;
+      font-weight: 700;
+      border-bottom: 4px solid #000;
+      padding-bottom: 10px;
+      margin-bottom: 25px;
+      text-transform: uppercase;
+    }
+    
+    .toc-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    
+    .toc-item {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.1rem;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    
+    .toc-name {
+      background-color: #fcfcf9;
+      padding-right: 10px;
+    }
+    
+    .toc-dots {
+      flex-grow: 1;
+      border-bottom: 2px dotted #aaa;
+      margin: 0 10px 5px 10px;
+    }
+    
+    .toc-num {
+      padding-left: 10px;
+      font-weight: bold;
+    }
+    
+    /* Chapter styling */
+    .book-page {
+      margin-top: 100px;
+      border-top: 4px solid #000;
+      padding-top: 50px;
+      page-break-before: always;
+    }
+    
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      color: #666;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 10px;
+      margin-bottom: 30px;
+    }
+    
+    .page-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 2.2rem;
+      font-weight: 700;
+      margin: 20px 0 35px 0;
+      line-height: 1.3;
+    }
+    
+    .story-text {
+      font-size: 1.3rem;
+      margin-bottom: 40px;
+      text-align: justify;
+      white-space: pre-line;
+    }
+    
+    .story-illustration {
+      max-width: 100%;
+      height: auto;
+      border-radius: 16px;
+      border: 4px solid #000;
+      margin: 30px auto;
+      display: block;
+      box-shadow: 6px 6px 0 0 #000;
+    }
+    
+    .page-number-footer {
+      text-align: center;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: bold;
+      margin-top: 50px;
+      font-size: 1.1rem;
+    }
+    
+    .book-footer {
+      text-align: center;
+      margin-top: 120px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.85rem;
+      color: #777;
+      border-top: 2px dashed #ccc;
+      padding-top: 30px;
+    }
+    
+    @media print {
+      body {
+        padding: 0;
+        background: #ffffff;
+      }
+      .book-cover {
+        box-shadow: none;
+        border-width: 4px;
+        page-break-after: always;
+      }
+      .toc-container {
+        box-shadow: none;
+        page-break-after: always;
+      }
+      .book-page {
+        margin-top: 0;
+        border-top: none;
+        page-break-after: always;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="book-cover">
+    <div class="genre-tag">${book.genre.toUpperCase()} &bull; AGE ${book.targetAgeGroup || 'All'}</div>
+    <h1>${book.title}</h1>
+    <div class="moral-banner">MORAL: ${book.moralLesson}</div>
+    <img src="${book.coverImageUrl}" alt="Book Cover" class="cover-illustration">
+    <div class="blurb-text">"${book.blurbText}"</div>
+  </div>
+
+  <div class="toc-container">
+    <div class="toc-title">Table of Contents</div>
+    <ul class="toc-list">
+      ${book.pages.map((p: any, idx: number) => `
+        <li class="toc-item">
+          <span class="toc-name">Page ${p.pageNumber}: ${p.chapterTitle || `Chapter ${idx + 1}`}</span>
+          <span class="toc-dots"></span>
+          <span class="toc-num">${p.pageNumber}</span>
+        </li>
+      `).join('')}
+    </ul>
+  </div>
+
+  ${book.pages.map((p: any, idx: number) => `
+    <div class="book-page">
+      <div class="page-header">
+        <span>${book.title.toUpperCase()}</span>
+        <span>PAGE ${p.pageNumber}</span>
+      </div>
+      <h2 class="page-title">${p.chapterTitle || `Chapter ${idx + 1}`}</h2>
+      <div class="story-text">${p.textContent}</div>
+      ${p.imageUrl ? `<img src="${p.imageUrl}" alt="Illustration for Page ${p.pageNumber}" class="story-illustration" />` : ''}
+      <div class="page-number-footer">- ${p.pageNumber} -</div>
+    </div>
+  `).join('')}
+
+  <div class="book-footer">
+    <p>This Collector's Digital Edition was prepared and dispatched automatically after a verified purchase.</p>
+    <p>&copy; ${new Date().getFullYear()} Dog AI Children's Book Generator. All rights reserved.</p>
+  </div>
+
+</body>
+</html>`;
+
+    const mailOptions = {
+      from: smtpUser ? `"Dog AI Books" <${smtpUser}>` : '"Dog AI Books" <noreply@dog-ai-books.com>',
+      to: email,
+      subject: `🎁 Your Digital Edition of "${book.title}" is ready!`,
+      html: `
+        <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 4px solid #000; border-radius: 24px; background-color: #FFFEE5; box-shadow: 8px 8px 0 0 #000;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <span style="font-size: 40px;">🐕</span>
+          </div>
+          <h1 style="color: #000; text-transform: uppercase; font-size: 26px; font-weight: 900; letter-spacing: -0.5px; border-bottom: 5px solid #000; padding-bottom: 12px; margin-top: 0; text-align: center;">
+            ARF! PURCHASE CONFIRMED!
+          </h1>
+          
+          <p style="font-size: 16px; color: #111; line-height: 1.6; font-weight: bold;">
+            Bark! Your Whop payment went through successfully! We've immediately processed your order and unlocked your library.
+          </p>
+          
+          <div style="background: #ffffff; border: 4px solid #000; padding: 25px; border-radius: 16px; margin: 25px 0; text-align: center; box-shadow: 4px 4px 0 0 #000;">
+            <img src="${book.coverImageUrl}" alt="Book Cover" style="max-width: 180px; border-radius: 12px; border: 3px solid #000; margin-bottom: 15px;" />
+            <h2 style="margin: 5px 0; color: #000; font-size: 22px; text-transform: uppercase; font-weight: bold;">${book.title}</h2>
+            <p style="margin: 8px 0; color: #e53e3e; font-weight: bold; font-size: 14px;">GENRE: ${book.genre.toUpperCase()}</p>
+            <p style="margin: 10px 0; color: #444; font-style: italic; font-size: 14px;">"${book.blurbText}"</p>
+          </div>
+          
+          <p style="font-size: 14px; color: #222; line-height: 1.6;">
+            <strong>Attached Digital Edition:</strong> We've attached a beautiful, responsive <strong>Offline Digital Edition (.html)</strong> file to this email. You can open it on your phone, tablet, or laptop anytime without needing internet, or easily click "Print" in your browser to save it as a PDF or print a gorgeous physical book!
+          </p>
+          
+          <p style="font-size: 14px; color: #222; line-height: 1.6; margin-top: 15px;">
+            Your book is also permanently unlocked on our website. Simply sign up or log in using your buyer email address <strong>${email}</strong> to access your digital bookshelf, look at customized cover designs, earn reading badges, and generate interactive stories!
+          </p>
+          
+          <div style="text-align: center; margin: 35px 0 25px 0;">
+            <a href="${process.env.APP_URL || 'https://ai.studio/build'}" style="background-color: #39FF14; color: #000; text-decoration: none; padding: 14px 28px; border: 4px solid #000; border-radius: 14px; font-weight: 900; font-size: 16px; display: inline-block; box-shadow: 5px 5px 0 0 #000; text-transform: uppercase; letter-spacing: 0.5px;">
+              Open My Bookshelf 🚀
+            </a>
+          </div>
+          
+          <div style="border-top: 3px dashed #000; padding-top: 20px; margin-top: 30px; font-size: 12px; color: #555;">
+            <p style="margin: 0; font-weight: bold;">Verified Secure Transaction</p>
+            <p style="margin: 4px 0 0 0;">This transmission is verified by Whop Signature cryptographical guards. If you need any assistance, contact us anytime.</p>
+          </div>
+        </div>
+      `,
+      attachments: [
+        {
+          filename: `${book.title.replace(/[^a-z0-9]/gi, '_')}_Digital_Edition.html`,
+          content: offlineHtml
+        }
+      ]
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✉️ Digital Book Email sent successfully to ${email}. Message ID: ${info.messageId}`);
+    
+    if (info.messageId && !smtpHost) {
+      const previewUrl = nodemailer.getTestMessageUrl(info);
+      if (previewUrl) {
+        console.log(`🔗 [DEBUG] Ethereal fallback email preview: ${previewUrl}`);
+      }
+    }
+  } catch (err) {
+    console.error("Failed to automatically email digital book PDF:", err);
+  }
+}
 
 // Initialize Gemini Client
 const ai = new GoogleGenAI({
@@ -179,7 +587,8 @@ app.post("/api/v1/users/register", async (req, res) => {
   }
 
   try {
-    const existing = await UserModel.findOne({ email });
+    const cleanEmail = email.trim().toLowerCase();
+    const existing = await UserModel.findOne({ email: cleanEmail });
     if (existing) {
       if (existing.passwordHash === "whop_unlocked_placeholder") {
         // Merge registered info into the Whop-unlocked stub!
@@ -197,7 +606,7 @@ app.post("/api/v1/users/register", async (req, res) => {
 
     const newUser = await UserModel.create({
       username,
-      email,
+      email: cleanEmail,
       passwordHash: password, // Simple plain mock storage for playground demo
       virtualCoins: 0,
       badges: [{ badgeId: "signup", title: "New Cadet Badge", unlockedAt: new Date().toISOString() }],
@@ -218,7 +627,8 @@ app.post("/api/v1/users/login", async (req, res) => {
   }
 
   try {
-    const user = await UserModel.findOne({ email });
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await UserModel.findOne({ email: cleanEmail });
     if (!user || user.passwordHash !== password) {
       return res.status(401).json({ error: "Invalid email or password." });
     }
@@ -321,6 +731,12 @@ app.get("/api/v1/books/:id/price-preview", async (req, res) => {
 app.post("/api/whop-webhook", async (req, res) => {
   console.log("Whop Webhook received body:", JSON.stringify(req.body));
   
+  // Verify Whop Signature to unlock the book safely using Whop Webhook Secret
+  if (!verifyWhopSignature(req, WHOP_WEBHOOK_SECRET)) {
+    console.error("Whop Webhook: Signature verification failed!");
+    return res.status(401).json({ error: "Invalid whop-signature header. Webhook validation failed!" });
+  }
+
   // Whop sends action or event as 'membership.created'
   const action = req.body.action || req.body.event || "";
   
@@ -370,6 +786,16 @@ app.post("/api/whop-webhook", async (req, res) => {
         status: "paid"
       });
       console.log(`Whop Webhook: Created pre-paid stub user for ${email} with status 'paid' and ${books.length} books unlocked.`);
+      
+      // Determine book purchased (fallback to the first published book if none)
+      const purchasedBook = books[0];
+      if (purchasedBook) {
+        // Trigger email asynchronously so webhook returns immediately to avoid timeouts
+        sendDigitalBookEmail(email.toLowerCase(), purchasedBook).catch(err => {
+          console.error("Async sendDigitalBookEmail error for stub user:", err);
+        });
+      }
+
       return res.json({ success: true, message: "Stub user created with premium access.", email });
     }
 
@@ -409,6 +835,22 @@ app.post("/api/whop-webhook", async (req, res) => {
 
     await user.save();
     console.log(`Whop Webhook: Successfully updated user ${email} to status 'paid' and unlocked ${books.length} books (last clicked: ${user.lastClickedBookId || 'none'}).`);
+    
+    // Find the purchased book using the user's lastClickedBookId or fallback to the first published book
+    let purchasedBook = null;
+    if (user.lastClickedBookId) {
+      purchasedBook = books.find(b => b._id.toString() === user.lastClickedBookId?.toString());
+    }
+    if (!purchasedBook && books.length > 0) {
+      purchasedBook = books[0];
+    }
+    if (purchasedBook) {
+      // Trigger email asynchronously to avoid webhook timeout
+      sendDigitalBookEmail(email.toLowerCase(), purchasedBook).catch(err => {
+        console.error("Async sendDigitalBookEmail error for existing user:", err);
+      });
+    }
+
     return res.json({ success: true, message: "User upgraded to premium access.", email });
   } catch (err) {
     console.error("Error processing Whop Webhook:", err);
@@ -1024,34 +1466,175 @@ function splitTextIntoEqualPages(fullStoryText: string, targetWordsPerPage: numb
   }));
 }
 
-function generateFallbackContinuousStory(title: string, genre: string, moral: string, blurb: string, targetWordCount: number = 7000): string {
-  const cleanTitle = title.replace(/['"“”]/g, '');
-  const cleanGenre = genre.replace(/['"“”]/g, '');
-  const cleanMoral = moral.replace(/['"“”]/g, '');
+function generateProceduralPadding(title: string, genre: string, moral: string, blurb: string, wordCountNeeded: number, startIndex: number = 0): string {
+  const cleanTitle = title.replace(/['"“”]/g, '').trim();
+  const cleanGenre = genre.replace(/['"“”]/g, '').trim();
+  const cleanMoral = moral.replace(/['"“”]/g, '').trim();
+  const cleanBlurb = blurb.replace(/['"“”]/g, '').trim();
 
-  let story = `Once upon a time, under a sky glowing with beautiful pink and golden clouds, a grand adventure began. In a wonderful place filled with ${cleanGenre}, everything was buzzing with happy excitement. This was the legendary tale of "${cleanTitle}"! Houses made of colorful blocks lined the cobblestone pathways, and sweet-smelling flowers bloomed in every garden. Tiny clockwork butterflies flitted from blossom to blossom, casting warm glowing sparkles. Today, our bright young heroes gathered at the town square, preparing for their greatest journey yet. They stood on the steps of the giant library, looking out at the friendly, welcoming valley. The sun was shining warmly, and a gentle breeze brought the scent of fresh cinnamon buns from the bakery. Every single person in the community had gathered to cheer them on, handing them a wooden compass painted with bright stars. To succeed, they knew they must remember their grandfather's wise words: "${cleanMoral}." `;
+  // Create a robust seed from input parameters + startIndex
+  const seedString = `${cleanTitle}|${cleanGenre}|${cleanMoral}|${cleanBlurb}|${startIndex}`;
+  
+  // Mulberry32-based seeded PRNG
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < seedString.length; i++) {
+    h = Math.imul(h ^ seedString.charCodeAt(i), 16777619) >>> 0;
+  }
+  const random = function() {
+    let z = (h += 0x6D2B79F5) | 0;
+    z = Math.imul(z ^ (z >>> 15), z | 1);
+    z ^= z + Math.imul(z ^ (z >>> 7), z | 61) | 0;
+    return ((z ^ (z >>> 14)) >>> 0) / 4294967296;
+  };
 
-  const paragraphs = [
-    `With a cheerful wave to the crowd, the adventurers set off. Their path led them through the heart of the magical valley of ${cleanGenre}, where the trees grew tall like candy canes and the streams bubbled with strawberry soda. 'Let's stick together!' shouted the leader, their boots bouncing on the soft, mossy earth. Every corner of this wonderful land presented a beautiful surprise. Giant colorful bubbles floated down from the mountaintops, gently carrying little clockwork toys that would whistle friendly tunes as they floated past. One bubble had a tiny wooden boat inside, spinning happily. Our heroes timed their hops, bouncing lightly from one giant bubble to another with spectacular agility. They worked together beautifully, holding hands and helping each other cross the sparkling streams just as the friendly turtles came out to swim.`,
-    `The trail soon wound into a magical forest where glowing paper lanterns hung from the branches, illuminating the path with soft, warm light. In this mystical place, they discovered a path made of giant, musical piano keys painted with funny cartoon characters. Each key made a delightful sound when stepped on—plink, plank, plunk! 'Follow the rhythm of the blue puppy keys!' the partner giggled, pointing to a key that was glowing with a friendly sky-blue light. Together, they danced across the keyboard, composing a beautiful, happy melody that made the forest trees sway and rustle. A group of fluffy, sleepy sloths poked their heads out of the branches, clapping their hands in slow, cozy rhythm. The adventurers laughed, throwing their hands in the air as they completed the musical puzzle, unlocking a hidden gate decorated with bright yellow sunflowers.`,
-    `Just as they reached the sunlit meadow, they met a giant, gentle clockwork dragon decorated with colorful gears and spinning paper windmills. It wasn't scary at all; it had big, friendly green eyes and a tail made of soft ribbons. 'Welcome, brave travelers!' the dragon hummed in a deep, cozy voice that sounded like a purring cat. 'To climb the mountain, you must show me your best teamwork and the kindness in your hearts.' Our heroes smiled warmly. Remembering their guiding star, "${cleanMoral}," they didn't run away or get upset. Instead, they stepped forward to offer the dragon a basket of sweet, shiny berries they had gathered along the way. The gentle giant let out a happy puff of strawberry-scented steam, its gears whirring with cheerful clicks. It lowered its soft, mossy wing, inviting them to climb aboard for a magnificent ride up to the sky-castle.`,
-    `Soaring high above the clouds on the dragon's back, they watched the beautiful valley of ${cleanGenre} glow in the golden evening light. They reached the top of the mountain just as the stars began to twinkle like diamonds. The village elders were waiting at the gate with a magnificent feast of double-scoop ice cream cones, dancing gingerbread cookies, and warm apple cider. The brave adventurers had completed their quest, showing everyone that with patience, friendship, and teamwork, they could turn any big challenge into a beautiful, town-wide festival of joy. The wise words of "${cleanMoral}" were celebrated by all, and they lived happily ever after, ready for the next spectacular story!`,
-    `As they entered the grand hallway of the ancient castle, they noticed that the walls were decorated with glowing paintings of past heroes who had mastered the art of ${cleanGenre}. Each painting seemed to whisper encouraging words, urging them forward. They walked on soft, velvet carpets that felt like stepping on fluffy clouds. Suddenly, a friendly clockwork owl flapped down from a high rafter, landing gracefully on the leader's shoulder. It blinked its shiny brass eyes and offered them a brass key decorated with a tiny sparkling ruby. 'This key unlocks the cabinet of infinite story pages,' the owl hooted softly. Our heroes thanked the owl warmly, understanding that every step forward brought them closer to uncovering the ultimate secret of the realm, proving that their dedication was indeed the key to unlocking the true potential of their hearts.`,
-    `Continuing deeper into the castle, they discovered a grand observatory with a massive brass telescope pointing towards the starlit sky. The ceiling was a dome of deep blue velvet, decorated with thousands of twinkling crystal stars that shifted and aligned themselves as the adventurers moved. Through the lens, they could see the distant spinning worlds of the ${cleanGenre} galaxy, glowing with vibrant shades of teal, neon pink, and bright yellow. It was a sight of breathtaking beauty. They felt so tiny yet so connected to the vast universe around them, realizing that their small adventure was part of a much larger, beautiful cosmic dance of joy and imagination that would continue for generations to come.`,
-    `In the next room, they found a glowing garden under a glass dome, where the plants were made of sparkling glass fibers that hummed with a soft, musical tone. Golden pollen drifted like fireflies through the air, casting gentle shadows on the stone floor. Here grew the legendary sunflower of courage, its petals made of warm, glowing gold. The adventurers stood in awe, feeling the warm energy radiating from the magnificent flower. They realized that the courage they sought was already within them, nurtured by their experiences and their shared commitment to helping each other succeed through every single hurdle they faced.`,
-    `They climbed a winding spiral staircase made of solid white marble, each step decorated with beautiful carvings of playful animals. As they ascended, the air became crisp and clear, filled with the fresh scent of mountain pine and sparkling starlight. They could hear the distant sound of silver bells ringing, celebrating their journey and guiding their path upward. When they finally reached the top balcony, they looked out over the entire land, their hearts filled with a profound sense of gratitude and accomplishment, ready to share their incredible story of "${cleanTitle}" with the world.`
+  const getRandElement = <T>(arr: T[]): T => arr[Math.floor(random() * arr.length)];
+
+  // Character pool
+  const names = [
+    "Jax", "Lyra", "Silas", "Kaelen", "Finn", "Zara", "Barnaby", "Clara", "Pippin", "Milo", 
+    "Oliver", "Penelope", "Gidget", "Fiona", "Cyrus", "Sari", "Bramble", "Casper", "Thea", "Orion"
+  ];
+  const items = [
+    "brass mechanical pocketwatch", "copper spectral analyzer", "luminous crystal prism", "portable magnetic anchor", 
+    "glow-in-the-dark lockpick", "miniature steam-powered compass", "stardust magnifying glass", "laser-deflection tool",
+    "glowing purple vial", "feathered aerodynamic pen", "holographic blueprint pad", "whistling wind-gauge"
+  ];
+  const skills = [
+    "sprinting across shaking elevated platforms", "rewiring sputtering energy nodes", "shaping high-voltage plasma loops",
+    "melting seamlessly into the deep shadows", "dusting antique desk drawers for mysterious fingerprints",
+    "hopping light-footedly over ancient stone obstacles", "deciphering old runes carved into granite pillars",
+    "brewing dynamic potions in custom copper kettles", "translating ancient birdsong in the forest canopy",
+    "balancing on narrow neon beams far above the floor"
   ];
 
-  let currentWords = story.split(/\s+/).filter(Boolean).length;
-  let counter = 0;
+  // Setting details
+  const settings = [
+    "a floating sky-castle built on weightless clouds", "a subterranean cavern filled with bioluminescent algae",
+    "a bustling neon-lit cyberpunk market alley", "a quiet, cozy wooden cabin smelling of old leather books",
+    "an ancient, overgrown temple covered in sweet jasmine vines", "a cosmic observatory perched on a glistening mountaintop",
+    "a whimsical village where the roads are paved with pastel gumballs", "a deep-sea dome looking out at curious glowing jellyfish",
+    "a mechanical clockwork factory filled with rhythmic ticking gears", "a mystical forest path protected by laughing fireflies"
+  ];
 
-  while (currentWords < targetWordCount) {
-    const baseParagraph = paragraphs[counter % paragraphs.length];
-    const variation = ` [Chapter ${counter + 1}]: Furthermore, during this phase of the grand adventure, the heroes encountered more wonders of ${cleanGenre}. They learned that every single obstacle could be overcome when keeping their core promise: "${cleanMoral}". They navigated through sparkling rivers of orange juice and climbed tall chocolate hills, singing happy songs that echoed through the canyons. Each step they took was filled with magical energy and laughter. `;
-    const paragraphWithVariation = baseParagraph + variation;
-    story += paragraphWithVariation;
-    currentWords = story.split(/\s+/).filter(Boolean).length;
-    counter++;
+  // Complications
+  const complications = [
+    "encountered a series of hovering energy barriers that hummed with static power",
+    "stumbled upon a colossal, whirring clockwork guard holding a massive golden key",
+    "discovered a winding puzzle lock on a heavy titanium vault door",
+    "faced a gusty wind corridor that kept blowing their maps in circles",
+    "found a floor paved with pressure-sensitive musical tiles",
+    "confronted a playful, ribbons-tailed dragon blocking the path with warm steam clouds",
+    "got lost in a maze of giant mirror columns reflecting multiple versions of themselves",
+    "witnessed a sudden low-gravity zone that made every leap feel like slow motion"
+  ];
+
+  // Actions
+  const actions = [
+    "carefully adjusted the dial on the", "swiftly bypassed the grid with the", "gently waved the glowing tip of the",
+    "enthusiastically tapped the screen of the", "hastily aligned the brass lenses of the", "proactively calibrated the gears of the",
+    "skillfully positioned the reflective edge of the", "playfully polished the copper frame of the"
+  ];
+
+  // Sensory details
+  const sensoryColors = ["electric lavender", "sunset crimson", "emerald green", "sparkling sapphire", "glistening gold", "neon magenta", "pale apricot", "crystal turquoise"];
+  const sensorySounds = [
+    "the low, melodic hum of ancient gears", "cheerful whistling melodies echoing from the canopy",
+    "the crisp, satisfying snap of static sparks", "silver bells ringing from the high arches", "the soothing murmur of thermal springs",
+    "soft rhythmic ticking of hidden chronometers"
+  ];
+  const sensorySmells = [
+    "toasty cinnamon buns baking nearby", "fresh pine wood and night rain", "sweet caramelized maple syrup",
+    "warm vanilla bean extract", "zesty fresh lemons and sweet nectar", "wild mountain mint and lavender mist"
+  ];
+
+  // Dialogues/Exclamations
+  const exclamations = [
+    "Look at this amazing discovery!", "We are closer than ever!", "We must proceed with utmost caution!",
+    "Amazing, it actually worked!", "Check out that strange vibration!", "I knew we would find the way!"
+  ];
+
+  // Resolution outcomes
+  const outcomes = [
+    "which sent a rush of pure excitement through the entire team.",
+    "proving that shared trust and quick thinking could solve any riddle.",
+    "opening a clear path forward adorned with beautiful blooming orchids.",
+    "sparking a magnificent cascade of star-like fairy dust that lit up the road.",
+    "bringing proud, happy smiles to their faces as they exchanged enthusiastic high-fives.",
+    "creating a warm glow in their hearts, confirming they were on the right track."
+  ];
+
+  let result = "";
+  let currentWords = 0;
+  let blockIndex = startIndex;
+
+  while (currentWords < wordCountNeeded) {
+    // Generate a beautiful, highly unique paragraph using seeded choices
+    const charNameA = getRandElement(names);
+    // Filter to ensure B is different
+    const remainingNames = names.filter(n => n !== charNameA);
+    const charNameB = getRandElement(remainingNames);
+    
+    const itemA = getRandElement(items);
+    const skillA = getRandElement(skills);
+    const setting = getRandElement(settings);
+    const comp = getRandElement(complications);
+    const actionA = getRandElement(actions);
+    const color = getRandElement(sensoryColors);
+    const sound = getRandElement(sensorySounds);
+    const smell = getRandElement(sensorySmells);
+    const excl = getRandElement(exclamations);
+    const outcome = getRandElement(outcomes);
+
+    const sentence1 = `As their spectacular journey progressed, the brave duo entered ${setting}, where the atmosphere smelled of ${smell}.`;
+    const sentence2 = `The path ahead was illuminated by a beautiful ${color} glow, accompanied by ${sound}.`;
+    const sentence3 = `Suddenly, they ${comp}.`;
+    const sentence4 = `"${excl}" exulted ${charNameA}, who was currently busy ${skillA}.`;
+    const sentence5 = `Without hesitation, ${charNameB} ${actionA} ${itemA} to balance the energy flow, ${outcome}`;
+    const sentence6 = `Remembering their core belief, "${cleanMoral}," they knew that treating every creature with kindness and honesty would lead to absolute success.`;
+
+    const paragraph = `${sentence1} ${sentence2} ${sentence3} ${sentence4} ${sentence5} ${sentence6}\n\n`;
+    result += paragraph;
+    currentWords = result.split(/\s+/).filter(Boolean).length;
+    blockIndex++;
+  }
+
+  return result;
+}
+
+function generateFallbackContinuousStory(title: string, genre: string, moral: string, blurb: string, targetWordCount: number = 7000): string {
+  const cleanTitle = title.replace(/['"“”]/g, '').trim();
+  const cleanGenre = genre.replace(/['"“”]/g, '').trim();
+  const cleanMoral = moral.replace(/['"“”]/g, '').trim();
+  const cleanBlurb = blurb.replace(/['"“”]/g, '').trim();
+
+  // Create a unique hash/seed from all input parameters
+  const baseSeedString = `${cleanTitle}|${cleanGenre}|${cleanMoral}|${cleanBlurb}`;
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < baseSeedString.length; i++) {
+    h = Math.imul(h ^ baseSeedString.charCodeAt(i), 16777619) >>> 0;
+  }
+  const random = function() {
+    let z = (h += 0x6D2B79F5) | 0;
+    z = Math.imul(z ^ (z >>> 15), z | 1);
+    z ^= z + Math.imul(z ^ (z >>> 7), z | 61) | 0;
+    return ((z ^ (z >>> 14)) >>> 0) / 4294967296;
+  };
+
+  const getRandElement = <T>(arr: T[]): T => arr[Math.floor(random() * arr.length)];
+
+  const starters = [
+    `Once upon a time, under a majestic sky painted with shades of golden stardust and deep violet, a magnificent adventure began. This is the official chronicle of "${cleanTitle}"!`,
+    `A streak of bright neon magenta sliced through the misty, whispering clouds as the legend of "${cleanTitle}" formally commenced.`,
+    `The heavy bronze bells of the grand mountain tower tolled exactly seven times, marking the exciting start of "${cleanTitle}".`,
+    `A soft, musical humming rose from the cobblestone roads, welcoming the brave souls gathered for "${cleanTitle}".`
+  ];
+  const startSentence = getRandElement(starters);
+
+  let story = `${startSentence} The atmosphere was electric with anticipation, especially in the marvelous realm of ${cleanGenre}. Our young heroes had packed their bags, calibrated their goggles, and prepared themselves for a quest that would test their skills and their hearts. To guide them through the perilous obstacles ahead, they held close the vital lesson they had learned from the village elders: "${cleanMoral}." According to ancient rumors, ${cleanBlurb}. They knew that as long as they stayed united, no challenge could stop them.\n\n`;
+
+  const currentWords = story.split(/\s+/).filter(Boolean).length;
+  if (currentWords < targetWordCount) {
+    story += generateProceduralPadding(title, genre, moral, blurb, targetWordCount - currentWords, 1);
   }
 
   return story;
@@ -1131,13 +1714,109 @@ function getDynamicKeywordImageUrl(title: string, content: string, genre: string
   return `https://loremflickr.com/600/600/cartoon,${encodeURIComponent(keyword)}?lock=${index + 200}`;
 }
 
+function enrichVocabularyForAgeGroup(text: string, ageGroup: string): string {
+  const isOldest = ageGroup.toLowerCase().includes("13") || ageGroup.toLowerCase().includes("teen") || ageGroup.toLowerCase().includes("adult");
+  const isOlder = ageGroup.toLowerCase().includes("9") || ageGroup.toLowerCase().includes("10") || ageGroup.toLowerCase().includes("11") || ageGroup.toLowerCase().includes("12") || isOldest;
+
+  if (!isOlder) return text;
+
+  let result = text;
+  
+  const substitutions: { [word: string]: string[] } = {
+    "fast": isOldest ? ["spontaneous", "brisk", "rapid", "swift", "hasty"] : ["quick", "brisk", "rapid"],
+    "quickly": isOldest ? ["expeditiously", "briskly", "swiftly", "hastily", "promptly"] : ["swiftly", "briskly", "promptly"],
+    "slow": ["sluggish", "plodding", "measured", "deliberate"],
+    "slowly": ["sluggishly", "deliberately", "gradually"],
+    "scary": ["formidable", "intimidating", "ominous", "spine-chilling", "daunting"],
+    "good": ["exemplary", "magnificent", "superb", "exquisite", "splendid"],
+    "happy": ["jubilant", "exuberant", "elated", "convivial"],
+    "sad": ["melancholy", "somber", "desolate", "downcast"],
+    "big": ["gargantuan", "colossal", "monumental", "immense", "enormous"],
+    "small": ["diminutive", "minuscule", "infinitesimal", "petite"],
+    "funny": ["humorous", "jocular", "comical", "whimsical", "droll"],
+    "shouted": ["exclaimed", "bellowed", "vociferated", "boomed"],
+    "find": ["unearth", "discover", "detect", "locate"],
+    "found": ["unearthed", "discovered", "detected", "located"],
+    "walked": ["ambled", "strided", "sauntered", "traversed"],
+    "looked": ["gazed", "peered", "scrutinized", "beheld", "examined"]
+  };
+
+  for (const [key, options] of Object.entries(substitutions)) {
+    const regex = new RegExp(`\\b${key}\\b`, 'gi');
+    result = result.replace(regex, (match) => {
+      const cleanMatch = match.toLowerCase();
+      const index = Math.abs(cleanMatch.charCodeAt(0)) % options.length;
+      const replacement = options[index];
+      if (match.charAt(0) === match.charAt(0).toUpperCase()) {
+        return replacement.charAt(0).toUpperCase() + replacement.slice(1);
+      }
+      return replacement;
+    });
+  }
+
+  return result;
+}
+
+function generateCoolChapterTitle(text: string, idx: number): string {
+  const cleanText = text.replace(/\[Chapter\s+\d+\]/gi, '').trim();
+  const words = cleanText.split(/\s+/).filter(w => w.length > 4);
+  
+  const excitingNouns = [
+    "signal", "laser", "scavenger", "crystal", "stars", "lemon", "clockwork", "gear", "jar", "library",
+    "dragon", "castle", "forest", "keys", "dinosaur", "ninja", "spy", "gargoyle", "telescope", "observatory",
+    "garden", "sunflower", "meadow", "island", "pirate", "rocket", "comet", "nebula", "tracker", "riddle",
+    "whisper", "echo", "shadow", "neon", "cyber", "volcano", "feather", "compass", "temple", "relic", "gumball",
+    "pretzel", "waffle", "biscuit", "cookie", "treasure", "map", "potion", "wizard", "magic"
+  ];
+  
+  const foundNouns = words.map(w => w.toLowerCase().replace(/[^\w]/g, ''))
+                          .filter(w => excitingNouns.includes(w));
+  
+  const uniqueNouns = Array.from(new Set(foundNouns));
+  
+  const templates = [
+    "The Mystery of the [NOUN]",
+    "The Secret [NOUN]",
+    "Quest for the [NOUN]",
+    "The Lost [NOUN]",
+    "Flight of the [NOUN]",
+    "The Whispering [NOUN]",
+    "Rise of the [NOUN]",
+    "The Sacred [NOUN]",
+    "Echoes of the [NOUN]",
+    "Journey to the [NOUN]",
+    "The Glowing [NOUN]",
+    "Legend of the [NOUN]",
+    "The Clockwork [NOUN]"
+  ];
+  
+  const templateIdx = idx % templates.length;
+  let selectedNoun = "Adventure";
+  if (uniqueNouns.length > 0) {
+    const rawNoun = uniqueNouns[idx % uniqueNouns.length];
+    selectedNoun = rawNoun.charAt(0).toUpperCase() + rawNoun.slice(1);
+  } else if (words.length > 2) {
+    const fallbackWord = words[idx % words.length].replace(/[^\w]/g, '');
+    if (fallbackWord.length > 3) {
+      selectedNoun = fallbackWord.charAt(0).toUpperCase() + fallbackWord.slice(1);
+    }
+  }
+  
+  return templates[templateIdx].replace("[NOUN]", selectedNoun);
+}
+
 // Make sure each page contains the pristine, emoji-free text content!
-function enrichStoryPages(pages: any[], title: string, genre: string, moral: string, coverUrl: string, isPictureBook: boolean = true): any[] {
-  return pages.map((p, idx) => ({
-    pageNumber: idx + 1,
-    textContent: stripEmojis(p.textContent || ""),
-    imageUrl: "" // For picture books, the pages do not have images initially, as requested.
-  }));
+function enrichStoryPages(pages: any[], title: string, genre: string, moral: string, coverUrl: string, isPictureBook: boolean = true, ageGroup: string = "Ages 8-12"): any[] {
+  return pages.map((p, idx) => {
+    const rawText = p.textContent || "";
+    const enrichedText = enrichVocabularyForAgeGroup(rawText, ageGroup);
+    return {
+      pageNumber: idx + 1,
+      chapterTitle: p.chapterTitle || generateCoolChapterTitle(rawText, idx),
+      textContent: stripEmojis(enrichedText),
+      imageUrl: p.imageUrl || (isPictureBook ? getDynamicKeywordImageUrl(title, rawText, genre, idx + 1) : "")
+    };
+  });
 }
 
 const DYNAMIC_COMIC_IDEAS = [
@@ -1178,10 +1857,83 @@ async function autoGenerateComicBook() {
     const cleanGenre = stripEmojis(rawIdea.genre);
     const coverUrl = rawIdea.coverImageUrl || getDynamicKeywordImageUrl(generatedTitle, cleanBlurb, cleanGenre, 0);
 
-    const fullStory = generateFallbackContinuousStory(generatedTitle, cleanGenre, cleanMoral, cleanBlurb, 15000);
-    const rawPages = splitTextIntoEqualPages(fullStory, 150);
-    const finalPages = enrichStoryPages(rawPages, generatedTitle, cleanGenre, cleanMoral, coverUrl);
-    const totalWords = rawPages.reduce((acc, p) => acc + p.textContent.split(/\s+/).filter(Boolean).length, 0);
+    let generatedPages: { chapterTitle: string, textContent: string }[] = [];
+
+    if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY" && !process.env.GEMINI_API_KEY.includes("dummy")) {
+      try {
+        const systemInstruction = `[SYSTEM ROLE]
+You are a master children's and YA graphic novel author. You excel at high-energy pacing, vivid atmospheric detail, and clever wit.
+You MUST output valid JSON conforming exactly to this schema:
+{
+  "generatedTitle": "A highly creative, punchy version of the book's title",
+  "pages": [
+    {
+      "chapterTitle": "A cool, clever, or mysterious name of what the chapter says",
+      "textContent": "Continuous descriptive paragraph, rich in cinematic, sensory details (no emojis, approx 150-250 words)."
+    }
+  ]
+}`;
+
+        const promptPayload = `Write a spectacular, highly immersive and detailed sequential children's story titled "${rawIdea.title}" in the "${rawIdea.genre}" genre.
+Target audience: ${rawIdea.ageGroup}.
+Moral Lesson to weave in naturally: "${rawIdea.moral}".
+Story Premise / Blurb: "${rawIdea.blurb}".
+
+You MUST generate exactly 4 sequential pages/chapters.
+For each and every page, write an immersive, action-packed narrative paragraph of 150-250 words. Ensure there is genuine progression from the first page to the last.
+Make sure each page has a completely unique, highly creative chapter name that is a cool, descriptive, or suspenseful version of the action on that page (avoid cliché templates like 'The Secret of the [Noun]').
+Do NOT include any emojis or metadata inside the JSON string. Output strict JSON only.`;
+
+        const response = await ai.models.generateContent({
+          model: "gemini-3.5-flash",
+          contents: promptPayload,
+          config: {
+            systemInstruction,
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                generatedTitle: { type: Type.STRING },
+                pages: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      chapterTitle: { type: Type.STRING },
+                      textContent: { type: Type.STRING }
+                    },
+                    required: ["chapterTitle", "textContent"]
+                  }
+                }
+              },
+              required: ["generatedTitle", "pages"]
+            }
+          }
+        });
+
+        if (response) {
+          const jsonStr = response.text?.trim() || "";
+          const parsed = JSON.parse(jsonStr);
+          if (parsed && Array.isArray(parsed.pages) && parsed.pages.length > 0) {
+            generatedPages = parsed.pages;
+          }
+        }
+      } catch (geminiError) {
+        console.warn("ℹ️ Background Gemini auto-generation error, using fallback:", geminiError);
+      }
+    }
+
+    if (generatedPages.length === 0) {
+      const fullStory = generateFallbackContinuousStory(generatedTitle, cleanGenre, cleanMoral, cleanBlurb, 600);
+      const rawPages = splitTextIntoEqualPages(fullStory, 150, 4);
+      generatedPages = rawPages.map((p, idx) => ({
+        chapterTitle: generateCoolChapterTitle(p.textContent, idx),
+        textContent: p.textContent
+      }));
+    }
+
+    const finalPages = enrichStoryPages(generatedPages, generatedTitle, cleanGenre, cleanMoral, coverUrl, true, rawIdea.ageGroup);
+    const totalWords = generatedPages.reduce((acc, p) => acc + p.textContent.split(/\s+/).filter(Boolean).length, 0);
 
     const generatedSecretSlug = crypto.randomBytes(16).toString("hex");
     const generatedGiveawayId = crypto.randomBytes(12).toString("hex");
@@ -1219,40 +1971,58 @@ setInterval(async () => {
 }, 120 * 1000);
 
 app.post("/api/v1/admin/generate-book-content", validateAdminToken, async (req, res) => {
-  const { title, genre, ageGroup, moral, blurb, coverImageUrl, pageCount, wordCount, price, isPictureBook } = req.body;
+  const { title, genre, ageGroup, moral, blurb, coverImageUrl, pageCount, wordCount, price, isPictureBook, vocabularyInstruction, vocabInstruction } = req.body;
 
   if (!title || !genre || !ageGroup || !moral || !blurb) {
     return res.status(400).json({ error: "Parameters missing. Please fulfill all details for the creative generator." });
   }
 
   try {
-    const systemInstruction = `[SYSTEM ROLE]
-You are an expert children's graphic novel and storybook author. Master children's high-energy humor and rich detailed prose.
-Output valid JSON, matching:
-{
-  "generatedTitle": "Wacky title",
-  "fullStoryText": "Continuous story text..."
-}`;
-
-    const targetWords = wordCount ? Number(wordCount) : 4000;
-    const promptPayload = `Create a spectacular, high-energy children's adventure story with a rich, highly detailed continuous narrative of approximately ${targetWords} words. 
-Do NOT include any emojis, chapter titles, or page headings.
-Avoid any meta-references to the book's blurb, summary, or AI generation instructions inside the text.
-Write with incredible, deep, cinematic detail. Instead of simple sentences like "they ran away", paint the action with intense sensory immersion and energy: describe their rapid breathing, the roaring sounds around them, vaulting over rusted chain-link fences, and dissolving into neon city center shadows. Dig deep into every single action and reaction!
-
-Title requested: ${title}
-Genre: ${genre}
-Target Age Group: ${ageGroup}
-Moral Lesson: ${moral}
-Blurb: ${blurb}
-
-Output matching JSON immediately.`;
-
     let generatedTitle = stripEmojis(title);
-    let fullStoryText = "";
+    let generatedPages: { chapterTitle: string, textContent: string }[] = [];
+
+    const pageCountNum = pageCount ? Number(pageCount) : 4;
+
+    let computedVocab = vocabularyInstruction || vocabInstruction;
+    if (!computedVocab) {
+      if (ageGroup === 'Teenagers') {
+        computedVocab = "For this teenage audience, enforce a highly advanced, mature, and sophisticated vocabulary. Use high-level, descriptive synonyms instead of simple verbs and adjectives (e.g., use 'traverse' or 'amble' instead of 'walk', 'vibrant' or 'resplendent' instead of 'bright', 'clandestinely' instead of 'secretly', 'gargantuan' or 'colossal' instead of 'big'). The narrative tone should be intellectually engaging, cinematic, and atmospheric.";
+      } else if (ageGroup === '5-7 years') {
+        computedVocab = "For this early childhood audience, keep the vocabulary accessible, highly engaging, rhythmic, and clear, with delightful sounds, colorful descriptions, and easy-to-understand verbs (e.g., 'jump', 'bright', 'happy', 'sparkle'). Avoid complex sentence structures or rare words while maintaining beautiful imagery.";
+      } else {
+        computedVocab = "For this pre-teen graphic novel audience, use a vivid, moderately complex vocabulary with high-energy pacing, descriptive descriptors, and creative word choices that challenge and excite young readers (e.g., use 'shimmering', 'peculiar', 'momentum', 'bypassed'). Avoid overly simplistic words but keep it highly readable.";
+      }
+    }
 
     if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY" && !process.env.GEMINI_API_KEY.includes("dummy")) {
       try {
+        const systemInstruction = `[SYSTEM ROLE]
+You are a master children's and YA graphic novel author. You excel at high-energy pacing, vivid atmospheric detail, and clever wit.
+You MUST adjust your vocabulary level based on the target audience constraints provided.
+You MUST output valid JSON conforming exactly to this schema:
+{
+  "generatedTitle": "A highly creative, punchy version of the book's title",
+  "pages": [
+    {
+      "chapterTitle": "A cool, clever, or mysterious name of what the chapter says",
+      "textContent": "Continuous descriptive paragraph, rich in cinematic, sensory details (no emojis, approx 150-250 words)."
+    }
+  ]
+}`;
+
+        const promptPayload = `Write a spectacular, highly immersive and detailed sequential story titled "${title}" in the "${genre}" genre.
+Target audience: ${ageGroup}.
+Moral Lesson to weave in naturally: "${moral}".
+Story Premise / Blurb: "${blurb}".
+
+VOCABULARY & COMPLEXITY INSTRUCTION:
+${computedVocab}
+
+You MUST generate exactly ${pageCountNum} sequential pages/chapters.
+For each and every page, write an immersive, action-packed narrative paragraph of 150-250 words conforming strictly to the requested vocabulary level. Ensure there is genuine progression from the first page to the last.
+Make sure each page has a completely unique, highly creative chapter name that is a cool, descriptive, or suspenseful version of the action on that page (avoid cliché templates like 'The Secret of the [Noun]').
+Do NOT include any emojis or metadata inside the JSON string. Output strict JSON only.`;
+
         const geminiCall = ai.models.generateContent({
           model: "gemini-3.5-flash",
           contents: promptPayload,
@@ -1263,15 +2033,25 @@ Output matching JSON immediately.`;
               type: Type.OBJECT,
               properties: {
                 generatedTitle: { type: Type.STRING },
-                fullStoryText: { type: Type.STRING }
+                pages: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      chapterTitle: { type: Type.STRING },
+                      textContent: { type: Type.STRING }
+                    },
+                    required: ["chapterTitle", "textContent"]
+                  }
+                }
               },
-              required: ["generatedTitle", "fullStoryText"]
+              required: ["generatedTitle", "pages"]
             }
           }
         });
 
         const timeoutPromise = new Promise<null>((_, reject) => {
-          setTimeout(() => reject(new Error("Gemini API request timed out after 10 seconds")), 10000);
+          setTimeout(() => reject(new Error("Gemini API request timed out after 15 seconds")), 15000);
         });
 
         const response = await Promise.race([geminiCall, timeoutPromise]);
@@ -1279,54 +2059,46 @@ Output matching JSON immediately.`;
         if (response) {
           const jsonStr = response.text?.trim() || "";
           const parsed = JSON.parse(jsonStr);
-          if (parsed && parsed.fullStoryText) {
-            fullStoryText = parsed.fullStoryText;
+          if (parsed && Array.isArray(parsed.pages) && parsed.pages.length > 0) {
+            generatedPages = parsed.pages;
             generatedTitle = stripEmojis(parsed.generatedTitle || title);
           }
         }
       } catch (geminiError) {
-        console.log("ℹ️ Gemini API is currently offline, busy, or timed out. Activating high-style comic story fallback engines!");
+        console.warn("ℹ️ Gemini API error during admin book content generation. Activating fallback engines!", geminiError);
       }
     }
 
-    if (!fullStoryText) {
+    if (generatedPages.length === 0) {
+      // Fallback: Generate procedural split pages (compact, no huge padded repetition!)
       generatedTitle = stripEmojis(title);
-      fullStoryText = generateFallbackContinuousStory(
+      const targetWords = pageCountNum * 150;
+      const fullStoryText = generateFallbackContinuousStory(
         generatedTitle,
         stripEmojis(genre),
         stripEmojis(moral),
         stripEmojis(blurb),
-        wordCount ? Number(wordCount) : 10000
+        targetWords
       );
+      
+      const splitPages = splitTextIntoEqualPages(fullStoryText, 150, pageCountNum);
+      generatedPages = splitPages.map((p, idx) => ({
+        chapterTitle: generateCoolChapterTitle(p.textContent, idx),
+        textContent: p.textContent
+      }));
     }
 
-    // Ensure we meet the wordCount target perfectly if it's less than targetWords
-    let currentWords = fullStoryText.split(/\s+/).filter(Boolean).length;
-    if (currentWords < targetWords) {
-      console.log(`Padding story from ${currentWords} words to target ${targetWords} words...`);
-      let counter = 0;
-      const paragraphs = [
-        `The heroes walked on soft, velvet carpets that felt like stepping on fluffy clouds. Suddenly, a friendly clockwork owl flapped down from a high rafter, landing gracefully on the leader's shoulder. It blinked its shiny brass eyes and offered them a brass key decorated with a tiny sparkling ruby. Our heroes thanked the owl warmly, understanding that every step forward brought them closer to uncovering the ultimate secret of the realm, proving that their dedication was indeed the key to unlocking the true potential of their hearts.`,
-        `Continuing deeper into the castle, they discovered a grand observatory with a massive brass telescope pointing towards the starlit sky. The ceiling was a dome of deep blue velvet, decorated with thousands of twinkling crystal stars that shifted and aligned themselves as the adventurers moved. Through the lens, they could see the distant spinning worlds of the galaxy, glowing with vibrant shades of teal, neon pink, and bright yellow. It was a sight of breathtaking beauty.`,
-        `In the next room, they found a glowing garden under a glass dome, where the plants were made of sparkling glass fibers that hummed with a soft, musical tone. Golden pollen drifted like fireflies through the air, casting gentle shadows on the stone floor. Here grew the legendary sunflower of courage, its petals made of warm, glowing gold. The adventurers stood in awe, feeling the warm energy radiating from the magnificent flower.`,
-        `They climbed a winding spiral staircase made of solid white marble, each step decorated with beautiful carvings of playful animals. As they ascended, the air became crisp and clear, filled with the fresh scent of mountain pine and sparkling starlight. They could hear the distant sound of silver bells ringing, celebrating their journey and guiding their path upward.`
-      ];
-      while (currentWords < targetWords) {
-        const baseParagraph = paragraphs[counter % paragraphs.length];
-        const variation = ` [Chapter ${counter + 1}]: Furthermore, during this phase of the grand adventure, the heroes encountered more wonders of ${stripEmojis(genre)}. They learned that every single obstacle could be overcome when keeping their core promise: "${stripEmojis(moral)}". They navigated through sparkling rivers of orange juice and climbed tall chocolate hills, singing happy songs that echoed through the canyons. Each step they took was filled with magical energy and laughter. `;
-        fullStoryText += " " + baseParagraph + variation;
-        currentWords = fullStoryText.split(/\s+/).filter(Boolean).length;
-        counter++;
-      }
-    }
-
-    // Strip emojis and split the story equally into pages
-    const cleanStoryText = stripEmojis(fullStoryText);
-    const splitPages = splitTextIntoEqualPages(cleanStoryText, 150, pageCount ? Number(pageCount) : undefined);
-    
     const finalCoverImg = coverImageUrl || getDynamicKeywordImageUrl(generatedTitle, stripEmojis(blurb), stripEmojis(genre), 0);
-    const enrichedPagesList = enrichStoryPages(splitPages, generatedTitle, stripEmojis(genre), stripEmojis(moral), finalCoverImg, isPictureBook !== undefined ? Boolean(isPictureBook) : true);
-    const totalWords = splitPages.reduce((acc, p) => acc + p.textContent.split(/\s+/).filter(Boolean).length, 0);
+    const enrichedPagesList = enrichStoryPages(
+      generatedPages,
+      generatedTitle,
+      stripEmojis(genre),
+      stripEmojis(moral),
+      finalCoverImg,
+      isPictureBook !== undefined ? Boolean(isPictureBook) : true,
+      stripEmojis(ageGroup)
+    );
+    const totalWords = enrichedPagesList.reduce((acc, p) => acc + p.textContent.split(/\s+/).filter(Boolean).length, 0);
 
     const generatedSecretSlug = crypto.randomBytes(16).toString("hex");
     const generatedGiveawayId = crypto.randomBytes(12).toString("hex");
@@ -1348,7 +2120,6 @@ Output matching JSON immediately.`;
       isPictureBook: isPictureBook !== undefined ? Boolean(isPictureBook) : true
     });
 
-    // Enforce instant saving for maximum user experience and seamless instant admin refresh
     console.log("🔓 Premium synthesis complete! Saving draft book to database.");
 
     await newBook.save();
