@@ -1601,14 +1601,14 @@ function generateProceduralPadding(title: string, genre: string, moral: string, 
   return result;
 }
 
-function generateFallbackContinuousStory(title: string, genre: string, moral: string, blurb: string, targetWordCount: number = 7000): string {
+function generateFallbackContinuousStory(title: string, genre: string, moral: string, blurb: string, targetWordCount: number = 7000, randomSalt: number = 0): string {
   const cleanTitle = title.replace(/['"“”]/g, '').trim();
   const cleanGenre = genre.replace(/['"“”]/g, '').trim();
   const cleanMoral = moral.replace(/['"“”]/g, '').trim();
   const cleanBlurb = blurb.replace(/['"“”]/g, '').trim();
 
-  // Create a unique hash/seed from all input parameters
-  const baseSeedString = `${cleanTitle}|${cleanGenre}|${cleanMoral}|${cleanBlurb}`;
+  // Create a unique hash/seed from all input parameters + randomSalt
+  const baseSeedString = `${cleanTitle}|${cleanGenre}|${cleanMoral}|${cleanBlurb}|${randomSalt}`;
   let h = 2166136261 >>> 0;
   for (let i = 0; i < baseSeedString.length; i++) {
     h = Math.imul(h ^ baseSeedString.charCodeAt(i), 16777619) >>> 0;
@@ -1634,7 +1634,7 @@ function generateFallbackContinuousStory(title: string, genre: string, moral: st
 
   const currentWords = story.split(/\s+/).filter(Boolean).length;
   if (currentWords < targetWordCount) {
-    story += generateProceduralPadding(title, genre, moral, blurb, targetWordCount - currentWords, 1);
+    story += generateProceduralPadding(title, genre, moral, blurb, targetWordCount - currentWords, 1 + randomSalt);
   }
 
   return story;
@@ -1819,38 +1819,130 @@ function enrichStoryPages(pages: any[], title: string, genre: string, moral: str
   });
 }
 
-const DYNAMIC_COMIC_IDEAS = [
-  {
-    title: "Special Agents Slush and Scoop",
-    genre: "Dinosaur",
-    ageGroup: "Ages 8-12",
-    moral: "Warm hearts are cooler than freezing friends!",
-    blurb: "An evil hair dryer is threaten to melt all double-scoop cones in Antarctica! Special Agents Slush and Scoop must master ninja-flipping before the waffle bowls collapse!",
-    coverImageUrl: "https://images.unsplash.com/photo-1569336415962-a4bd9f69cd83?auto=format&fit=crop&q=80&w=600"
-  },
-  {
-    title: "Dexter the Tyrannosaurus Rocker",
-    genre: "Space Adventure",
-    ageGroup: "Ages 8-12",
-    moral: "Shorter arms mean you need longer drumsticks!",
-    blurb: "Dexter is a happy Tyrannosaurus with a huge dream: becoming the master metal rock drummer! But his tiny arms keep dropping the sticks. Will his best friends help him engineer a tail-drum booster?",
-    coverImageUrl: "https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&q=80&w=600"
-  },
-  {
-    title: "Sir Barnaby's Clockwork Castle",
-    genre: "Detective",
-    ageGroup: "Ages 8-12",
-    moral: "Patience and clockwork gears can solve any riddle.",
-    blurb: "A snail with a giant top hat slides through a magical floating castle operated by winding keys and ticklish gargoyles!",
-    coverImageUrl: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?auto=format&fit=crop&q=80&w=600"
-  }
-];
+function generateTrillionUniqueBookIdea() {
+  const characters = [
+    "A clumsy ninja panda", "An eccentric clockwork snail", "A high-tech detective penguin", 
+    "A friendly neon dragon", "A gravity-defying space koala", "A tiny wizard hamster", 
+    "A fast-talking raccoon spy", "A musical gargoyle puppy", "A hyperactive squirrel hacker", 
+    "A dapper gentleman detective octopus", "A sweet cupcake-baking badger", "A cheerful hot-air balloonist fox", 
+    "An ancient wise turtle spellsmith", "A miniature steam-powered clockwork cat", "A star-gazing lemur astronomer", 
+    "A mischievous ribbon-tailed ferrets team", "A courageous cyber-knight rabbit", "A floating bubble-blowing elephant", 
+    "A legendary golden-maned lion cub", "An adventurous marshmallow-roasting hedgehog"
+  ];
+
+  const locations = [
+    "in a floating cloud castle operated by winding gears", "in a bioluminescent subterranean mushroom cavern", 
+    "in a neon-drenched futuristic cyber marketplace", "inside an ancient overgrown treehouse library", 
+    "on a tiny cratered asteroid smelling of caramelized maple syrup", "in a quiet pastel-colored candy-cane village", 
+    "at the bottom of a sparkling soda-pop ocean looking at glowing jellyfish", "within a giant wind-up pocketwatch kingdom", 
+    "in a secret high-voltage plasma laboratory", "on a mysterious mountain peak where stars are harvested",
+    "inside a whimsical mechanical toy factory", "along an emerald-green forest path protected by laughing fireflies",
+    "in a cosmic space station orbiting a giant strawberry planet", "under a crystal-clear dome in the middle of a desert oasis",
+    "inside a cozy wooden cabin smelling of warm gingerbread and old books"
+  ];
+
+  const conflicts = [
+    "trying to stop an evil hair dryer from melting all the ice cream", "seeking to engineer a jet-powered tail booster for high-energy drum solos", 
+    "unraveling a series of musical riddle locks to find the legendary golden key", "searching for a lost glowing sapphire prism before the power grid fails", 
+    "racing to decode a whispering wind scroll to save the annual gingerbread festival", "assembling a miniature steam-powered compass to navigate a mirror maze", 
+    "re-wiring a sputtering neon laser node to restore the sky-castle's gravity", "brewing a magical lavender potion to calm a ticklish lava monster", 
+    "deciphering ancient runes carved on a heavy titanium vault door", "catching a mischievous star-snatcher before the sky goes completely dark",
+    "repairing a giant bubble-blowing machine before it floods the entire city with suds", "protecting a rare basket of golden stardust cherries from playful monkeys",
+    "uncovering a secret map hidden inside an antique brass desk drawer", "helping a shy clockwork guard find his missing pocketwatch gear",
+    "inventing a flying pair of aerodynamic skates to soar over a gusty wind corridor"
+  ];
+
+  const outcomes = [
+    "resulting in a glorious cascade of sparkling rainbow light.", "which teaches them the magical secrets of the elders.",
+    "opening a portal to a world they never knew existed.", "bringing warm laughter and sweet nectar to everyone.",
+    "proving that even the wildest dreams can come true.", "filling the entire kingdom with beautiful ticking harmony."
+  ];
+
+  const subjects = [
+    "Panda", "Snail", "Penguin", "Dragon", "Koala", "Hamster", "Raccoon", "Puppy", "Squirrel", "Octopus",
+    "Badger", "Fox", "Turtle", "Cat", "Lemur", "Ferret", "Rabbit", "Elephant", "Lion", "Hedgehog"
+  ];
+
+  const adjectives = [
+    "Magic", "Clockwork", "Cosmic", "Neon", "Cyber", "Whispering", "Glowing", "Golden", "Emerald", "Secret",
+    "Crystal", "Steampunk", "Bouncing", "Whimsical", "Luminous", "Stardust", "Flying", "Sparkling", "Tiny", "Mighty"
+  ];
+
+  const nouns = [
+    "Castle", "Galaxy", "Cavern", "Compass", "Key", "Riddle", "Adventure", "Ocean", "Forest", "Chronicle",
+    "Legend", "Mission", "Puzzle", "Portal", "Festival", "Astrolabe", "Kingdom", "Meadow", "Whisper", "Echo"
+  ];
+
+  const genres = [
+    "Space Adventure", "Detective Mystery", "Dinosaur Fantasy", "Cyberpunk Comedy", "Whimsical Folklore", 
+    "Time-Travel Thriller", "Clockwork Legend", "Magical Realism", "High-Energy Quest", "Retro Tech"
+  ];
+
+  const ageGroups = ["5-7 years", "Ages 8-12", "Teenagers", "Ages 6-9"];
+
+  const morals = [
+    "treating every creature with kindness and honesty leads to the greatest victory.",
+    "warm hearts and teamwork are cooler than freezing out your friends.",
+    "patience, trust, and quick thinking can solve the most intricate riddles.",
+    "even the smallest hands can turn the largest gears when we work together.",
+    "true courage is sharing your fears with those you trust.",
+    "honesty and forgiveness can light up the darkest caverns.",
+    "believing in yourself is the spark that starts the grandest engines.",
+    "the best adventures are the ones we share with others.",
+    "wisdom is knowing that mistakes are just stepping stones to success.",
+    "kindness is a universal language that even clockwork guards understand."
+  ];
+
+  // We can use Math.random() here as it is background/runtime generation
+  const char = characters[Math.floor(Math.random() * characters.length)];
+  const loc = locations[Math.floor(Math.random() * locations.length)];
+  const conf = conflicts[Math.floor(Math.random() * conflicts.length)];
+  const out = outcomes[Math.floor(Math.random() * outcomes.length)];
+  
+  const subj = subjects[Math.floor(Math.random() * subjects.length)];
+  const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
+
+  // Formulate a dynamic title
+  const titleTemplates = [
+    `The ${adj} ${subj}'s ${noun}`,
+    `${adj} ${subj} and the ${noun}`,
+    `Quest for the ${adj} ${noun}`,
+    `The Secret of the ${adj} ${subj}`,
+    `The ${noun} of ${subj}`,
+    `Journey to the ${adj} ${noun}`
+  ];
+  const title = titleTemplates[Math.floor(Math.random() * titleTemplates.length)];
+  
+  const genre = genres[Math.floor(Math.random() * genres.length)];
+  const ageGroup = ageGroups[Math.floor(Math.random() * ageGroups.length)];
+  const moral = morals[Math.floor(Math.random() * morals.length)];
+  const blurb = `${char} ${loc} is ${conf}, ${out}`;
+  
+  // Choose random background keyword images to prevent repeating covers
+  const randomPhotoIds = [
+    "photo-1607604276583-eef5d076aa5f",
+    "photo-1569336415962-a4bd9f69cd83",
+    "photo-1534447677768-be436bb09401",
+    "photo-1518709268805-4e9042af9f23",
+    "photo-1454165804606-c3d57bc86b40",
+    "photo-1502082553048-f009c37129b9",
+    "photo-1518156677180-95a2893f3e9f",
+    "photo-1579783902614-a3fb3927b6a5",
+    "photo-1541701494587-cb58502866ab",
+    "photo-1549490349-8643362247b5"
+  ];
+  const selectedPhotoId = randomPhotoIds[Math.floor(Math.random() * randomPhotoIds.length)];
+  const coverImageUrl = `https://images.unsplash.com/${selectedPhotoId}?auto=format&fit=crop&q=80&w=600`;
+
+  return { title, genre, ageGroup, moral, blurb, coverImageUrl };
+}
 
 // Background automatic 2-minute generator
 async function autoGenerateComicBook() {
   console.log("⏰ BACKGROUND TIMER RUNNING: Synthesizing a spectacular unpublished comic draft...");
   try {
-    const rawIdea = DYNAMIC_COMIC_IDEAS[Math.floor(Math.random() * DYNAMIC_COMIC_IDEAS.length)];
+    const rawIdea = generateTrillionUniqueBookIdea();
     const generatedTitle = stripEmojis(rawIdea.title);
     const cleanBlurb = stripEmojis(rawIdea.blurb);
     const cleanMoral = stripEmojis(rawIdea.moral);
@@ -1924,7 +2016,8 @@ Do NOT include any emojis or metadata inside the JSON string. Output strict JSON
     }
 
     if (generatedPages.length === 0) {
-      const fullStory = generateFallbackContinuousStory(generatedTitle, cleanGenre, cleanMoral, cleanBlurb, 600);
+      const salt = Math.floor(Math.random() * 1000000);
+      const fullStory = generateFallbackContinuousStory(generatedTitle, cleanGenre, cleanMoral, cleanBlurb, 600, salt);
       const rawPages = splitTextIntoEqualPages(fullStory, 150, 4);
       generatedPages = rawPages.map((p, idx) => ({
         chapterTitle: generateCoolChapterTitle(p.textContent, idx),
@@ -2073,12 +2166,14 @@ Do NOT include any emojis or metadata inside the JSON string. Output strict JSON
       // Fallback: Generate procedural split pages (compact, no huge padded repetition!)
       generatedTitle = stripEmojis(title);
       const targetWords = pageCountNum * 150;
+      const salt = Math.floor(Math.random() * 1000000);
       const fullStoryText = generateFallbackContinuousStory(
         generatedTitle,
         stripEmojis(genre),
         stripEmojis(moral),
         stripEmojis(blurb),
-        targetWords
+        targetWords,
+        salt
       );
       
       const splitPages = splitTextIntoEqualPages(fullStoryText, 150, pageCountNum);
@@ -2252,10 +2347,20 @@ app.get("/api/v1/promotions/claim", async (req, res) => {
   }
 });
 
+// AI-Driven Holiday Detector State Cache
+let cachedHolidayResponse: { success: boolean, isHoliday: boolean, holidayName: string, source: string } | null = null;
+let cachedHolidayDate: string | null = null;
+let lastHolidayAttemptTime = 0; // ms timestamp to throttle subsequent attempts if rate limited
+
 // AI-Driven Holiday Detector
 app.get("/api/v1/detect-holiday", async (req, res) => {
   const now = new Date();
   const dateStr = now.toDateString();
+
+  // If we have a cached response for the current date, return it instantly!
+  if (cachedHolidayDate === dateStr && cachedHolidayResponse !== null) {
+    return res.status(200).json(cachedHolidayResponse);
+  }
 
   // Standard fallback detection
   const month = now.getMonth(); // 0 = Jan, 11 = Dec
@@ -2274,7 +2379,10 @@ app.get("/api/v1/detect-holiday", async (req, res) => {
   if (isValentines) holidayName = "Valentine's Day";
   if (isFourthOfJuly) holidayName = "Fourth of July";
 
-  if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY") {
+  const timeSinceLastAttempt = Date.now() - lastHolidayAttemptTime;
+  const isThrottled = timeSinceLastAttempt < 3600000; // 1 hour throttle if rate limited
+
+  if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY" && !isThrottled) {
     try {
       const promptPayload = `Analyze this exact date: ${dateStr}. Determine if this date is a major international holiday (such as Christmas, Christmas Eve, New Year's Eve, New Year's Day, Thanksgiving, Halloween, Valentine's Day, Fourth of July, Easter, Eid, Hanukkah, Diwali, or other globally significant festive days). Respond ONLY with a valid JSON object in this format: { "isHoliday": boolean, "holidayName": string }`;
       
@@ -2296,24 +2404,45 @@ app.get("/api/v1/detect-holiday", async (req, res) => {
 
       const parsed = JSON.parse(response.text?.trim() || "{}");
       if (parsed && typeof parsed.isHoliday === "boolean") {
-        return res.status(200).json({
+        cachedHolidayDate = dateStr;
+        cachedHolidayResponse = {
           success: true,
           isHoliday: parsed.isHoliday,
           holidayName: parsed.holidayName || "AI Detected Holiday",
           source: "gemini"
-        });
+        };
+        return res.status(200).json(cachedHolidayResponse);
       }
     } catch (err: any) {
       console.log("ℹ️ Gemini Holiday Detection failed or was rate limited, falling back to static detection:", err?.message || err);
+      lastHolidayAttemptTime = Date.now(); // throttle API requests for 1 hour to prevent constant rate-limit warnings
     }
   }
 
-  return res.status(200).json({
+  // If Gemini failed or is throttled, return fallback, and cache fallback for 10 minutes (to avoid re-triggering every click)
+  const fallbackRes = {
     success: true,
     isHoliday,
     holidayName,
     source: "fallback"
-  });
+  };
+  
+  if (isThrottled) {
+    // Return immediately, don't write to long term cache, but don't hit Gemini
+    return res.status(200).json(fallbackRes);
+  } else {
+    // Temporarily cache fallback for 10 minutes to prevent spam
+    cachedHolidayDate = dateStr;
+    cachedHolidayResponse = fallbackRes;
+    // Set timer to clear cache in 10 minutes so we can retry Gemini later if the limit resets
+    setTimeout(() => {
+      if (cachedHolidayResponse && cachedHolidayResponse.source === "fallback") {
+        cachedHolidayResponse = null;
+        cachedHolidayDate = null;
+      }
+    }, 600000);
+    return res.status(200).json(fallbackRes);
+  }
 });
 
 // --- VITE MIDDLEWARE SETUP ---
